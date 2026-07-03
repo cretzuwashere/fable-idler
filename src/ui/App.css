@@ -1,0 +1,213 @@
+/* App.css — layout shell (04 §3): header, 3/2-zone grids, mobile stack,
+   solo mode, prestige overlay. All colors via tokens. */
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------- header ---------------- */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 24px;
+  background: var(--ink);
+  border-bottom: 1px solid var(--ink-border);
+}
+
+.app-header--compact {
+  height: var(--header-h-mobile);
+  padding: 0 12px;
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app-header__title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.app-header--compact .app-header__title {
+  font-size: 20px;
+}
+
+.app-header__side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-header__quills {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--quill);
+  background: var(--ink-raised);
+  border: 1px solid var(--quill-deep);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+
+.app-header__quills-label {
+  font-weight: 400;
+  color: var(--parchment-dim);
+}
+
+.app-header__settings {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  border-radius: var(--radius-btn);
+  border: 1px solid transparent;
+}
+
+.app-header__settings:hover {
+  background: var(--ink-hover);
+  border-color: var(--ink-border);
+}
+
+/* ---------------- solo mode (first 30 seconds) ---------------- */
+
+.app-solo {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 24px 24px;
+}
+
+/* ---------------- desktop / tablet grid ---------------- */
+
+.app-main {
+  flex: 1;
+  display: grid;
+  gap: 20px;
+  width: 100%;
+  max-width: 1520px;
+  margin: 0 auto;
+  padding: 20px 24px;
+  align-items: start;
+  min-height: 0;
+}
+
+.col-left {
+  position: sticky;
+  top: calc(var(--header-h) + 20px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.col-center,
+.col-right {
+  overflow-y: auto;
+  max-height: calc(100vh - var(--header-h) - 40px);
+  padding-right: 2px;
+  min-width: 0;
+}
+
+.col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.altar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: var(--ink);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  width: 100%;
+  max-width: 380px;
+}
+
+.center-panel {
+  min-width: 0;
+}
+
+.fable-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---------------- mobile ---------------- */
+
+.app-mobile {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.app-mobile__resource {
+  position: sticky;
+  top: var(--header-h-mobile);
+  z-index: 40;
+  background: var(--ink);
+  border-bottom: 1px solid var(--ink-border);
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-mobile__content {
+  flex: 1;
+  padding: 16px 12px calc(80px + env(safe-area-inset-bottom));
+}
+
+.altar--mobile {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  max-width: none;
+  padding-top: 32px;
+}
+
+/* ---------------- prestige overlay ---------------- */
+
+.prestige-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink-deep);
+}
+
+.prestige-overlay__message {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(24px, 4vw, 40px);
+  color: var(--quill);
+  text-align: center;
+  padding: 0 24px;
+}
+
+/* 200% zoom / narrow desktop safety: grids collapse naturally via layout hook */

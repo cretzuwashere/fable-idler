@@ -1,0 +1,41 @@
+.offline-modal__whisper {
+  margin: 0;
+  font-size: 14px;
+  color: var(--parchment-dim);
+  text-align: center;
+}
+
+.offline-modal__gained {
+  margin: 14px 0 2px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 40px;
+  color: var(--gold-bright);
+  text-align: center;
+  text-shadow: var(--glow-gold-text);
+}
+
+.offline-modal__efficiency {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.offline-modal__collect {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border-radius: var(--radius-btn);
+  background: var(--gold-deep);
+  border: 1px solid var(--gold);
+  color: var(--parchment);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.offline-modal__collect:hover {
+  background: var(--gold);
+  color: var(--ink-deep);
+  box-shadow: var(--glow-gold);
+}

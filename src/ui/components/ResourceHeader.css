@@ -1,0 +1,48 @@
+.resource-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 0 4px;
+}
+
+.resource-header__amount-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.resource-header__amount {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.1;
+  color: var(--gold-bright);
+  text-shadow: var(--glow-gold-text);
+}
+
+.resource-header__rate {
+  font-size: 15px;
+  color: var(--parchment-dim);
+}
+
+.resource-header__rate--buff {
+  color: var(--ember);
+}
+
+/* Compact variant — sticky top row on mobile (04 §3.3) */
+.resource-header--compact {
+  flex-direction: row;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.resource-header--compact .resource-header__amount {
+  font-size: 28px;
+}
+
+.resource-header--compact .resource-header__rate {
+  font-size: 13px;
+  align-self: center;
+}

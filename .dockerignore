@@ -1,0 +1,12 @@
+node_modules
+dist
+ai-memory
+tools
+.git
+.gitignore
+playwright-report
+test-results
+*.md
+!README.md
+Dockerfile
+docker-compose.yml

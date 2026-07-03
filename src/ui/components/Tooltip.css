@@ -1,0 +1,44 @@
+.tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 10px;
+  background: var(--ink-deep);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-btn);
+  box-shadow: var(--shadow-pop);
+  color: var(--parchment);
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: left;
+  pointer-events: none;
+  white-space: normal;
+}
+
+.tooltip-title {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 2px;
+}
+
+.tooltip-dim {
+  color: var(--parchment-dim);
+}
+
+.tooltip-bonus {
+  display: block;
+  margin-top: 2px;
+  color: var(--grow);
+}

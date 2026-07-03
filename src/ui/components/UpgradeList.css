@@ -1,0 +1,125 @@
+.upgrade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.upgrade-list__empty {
+  margin: 8px 2px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.upgrade-list__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 719px) {
+  .upgrade-list__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.upgrade-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  text-align: left;
+  background: var(--ink-raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.upgrade-card--affordable {
+  border: 1px solid var(--grow);
+  box-shadow: var(--shadow-card), var(--glow-grow);
+}
+
+.upgrade-card--affordable:hover {
+  background: var(--ink-hover);
+}
+
+.upgrade-card--expensive {
+  border: 1px solid var(--ink-border);
+}
+
+.upgrade-card--expensive .upgrade-card__cost {
+  color: var(--muted);
+}
+
+.upgrade-card--quill {
+  border: 1px solid var(--quill);
+}
+
+.upgrade-card--quill.upgrade-card--affordable {
+  box-shadow: var(--shadow-card), var(--glow-quill);
+}
+
+.upgrade-card--purchased {
+  border: 1px solid var(--ink-border);
+  filter: saturate(0.5);
+  opacity: 0.8;
+}
+
+.upgrade-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.upgrade-card__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--parchment);
+}
+
+.upgrade-card__check {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.upgrade-card__desc {
+  font-size: 13px;
+  color: var(--parchment-dim);
+}
+
+.upgrade-card__cost {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.upgrade-list__purchased-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 6px 8px;
+  border-radius: var(--radius-btn);
+}
+
+.upgrade-list__purchased-toggle:hover {
+  color: var(--parchment);
+  background: var(--ink-hover);
+}
+
+.upgrade-list__chevron {
+  display: inline-block;
+  transition: transform 180ms ease-out;
+}
+
+.upgrade-list__chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.upgrade-list__purchased {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

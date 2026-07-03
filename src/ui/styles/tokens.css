@@ -1,0 +1,196 @@
+/* tokens.css — the single source of truth for every color in the game.
+   The :root block below is copied LITERALLY from ai-memory/04-ui-ux-decisions.md §1.1.
+   No hex color may appear anywhere else except animations.css (QA §8). */
+
+:root {
+  /* Fundaluri (indigo-cerneală cald, din adânc spre suprafață) */
+  --ink-deep:    #121022;  /* fundalul paginii (body) */
+  --ink:         #1b1730;  /* fundalul panourilor mari / coloanelor */
+  --ink-raised:  #262040;  /* carduri, rânduri, suprafețe interactive */
+  --ink-hover:   #2e2750;  /* hover pe suprafețe */
+  --ink-border:  #3b3260;  /* borduri subtile 1px */
+
+  /* Text */
+  --parchment:      #f0e6d2;  /* text principal (pergament cald) */
+  --parchment-dim:  #c9bda4;  /* text secundar (producție, flavor) */
+  --muted:          #8d8398;  /* text terțiar / disabled / hint-uri */
+
+  /* Accente semantice */
+  --gold:        #e8b54d;  /* Inspiration, titluri, accente principale */
+  --gold-bright: #ffd97a;  /* glow, hover pe gold, numărul mare de resursă */
+  --gold-deep:   #9c7226;  /* borduri/umbre ale elementelor aurii */
+  --quill:       #b48ce4;  /* prestige / Golden Quills / tot ce e meta */
+  --quill-deep:  #7a5aad;  /* borduri/fundal panou prestige */
+  --grow:        #8fc97a;  /* affordable / succes / progres pozitiv */
+  --grow-deep:   #4f7a42;  /* border buton buy activ */
+  --ember:       #f0975a;  /* buff activ Moment of Inspiration (flacără) */
+  --danger:      #e06c5a;  /* reset, acțiuni distructive */
+
+  /* Umbre & glow (folosite consistent, nu umbre ad-hoc) */
+  --shadow-card:  0 2px 8px rgba(8, 6, 18, 0.55);
+  --shadow-pop:   0 8px 28px rgba(8, 6, 18, 0.7);
+  --glow-gold:    0 0 14px rgba(232, 181, 77, 0.45);
+  --glow-quill:   0 0 14px rgba(180, 140, 228, 0.45);
+  --glow-grow:    0 0 10px rgba(143, 201, 122, 0.40);
+
+  /* Geometrie */
+  --radius-card: 12px;
+  --radius-btn:  10px;
+  --radius-pill: 999px;
+}
+
+/* Derived / shared tokens (still the only place with raw color values) */
+:root {
+  /* Typography (04 §2 — self-hosted via @fontsource, bundled by Vite) */
+  --font-display: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --font-ui: 'InterVariable', 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Modal backdrop (04 §5 #12) + translucent ink for rings/overlays */
+  --backdrop: rgba(18, 16, 34, 0.75);
+  --ink-deep-25: rgba(18, 16, 34, 0.25);
+
+  /* Soft glow variants used by breatheGlow keyframes (animations.css) */
+  --glow-gold-soft: 0 0 14px rgba(232, 181, 77, 0.18);
+  --glow-gold-text: 0 0 14px rgba(232, 181, 77, 0.25);
+  --glow-gold-inset: inset 0 0 34px rgba(232, 181, 77, 0.12);
+  --glow-ember: 0 0 14px rgba(240, 151, 90, 0.45);
+  --glow-ember-soft: 0 0 10px rgba(240, 151, 90, 0.22);
+
+  /* Candlelight vignette (04 §1.1) */
+  --vignette: radial-gradient(ellipse at 50% -10%, rgba(232, 181, 77, 0.07), transparent 55%);
+
+  /* Layout metrics */
+  --header-h: 56px;
+  --header-h-mobile: 48px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Global base                                                         */
+/* ------------------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background-color: var(--ink-deep);
+  color: var(--parchment);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Candle vignette — warm light from above (04 §1.1) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--vignette);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Noise texture — inline SVG feTurbulence, fractalNoise 0.9 (04 §1.1) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  opacity: 0.035;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0;
+  color: var(--parchment);
+}
+
+button {
+  font-family: var(--font-ui);
+  color: inherit;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+input,
+textarea {
+  font-family: var(--font-ui);
+}
+
+/* Focus states — everywhere, always (04 §7.2) */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* All game numbers are tabular so they never dance at 10 ticks/sec (04 §2) */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle themed scrollbars for the scrolling columns */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--ink-border);
+  border-radius: var(--radius-pill);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Emoji "coin" — emoji are never raw in text (04 §1.2) */
+.icon-coin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--ink-hover), var(--ink-deep));
+  border: 1px solid var(--ink-border);
+  filter: saturate(0.9);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.icon-coin--sm {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}

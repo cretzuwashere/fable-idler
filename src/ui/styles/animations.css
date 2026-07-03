@@ -1,0 +1,324 @@
+/* animations.css — ALL 15 animations from ai-memory/04-ui-ux-decisions.md §5,
+   with the exact durations/easings. The only file besides tokens.css allowed
+   to contain raw color values (QA §8) — everything here still uses tokens.
+   #13 countUp is a JS tween (OfflineModal) and #14 buffRing is a conic-gradient
+   updated from the game tick (BuffButton) — documented here, implemented in JS. */
+
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* #1 floatUp — FloatingNumber on click: 800ms ease-out, forwards.
+   translateX(-50%) must be repeated here: the animation's transform REPLACES
+   the base transform, so omitting it would shift the number half its width
+   to the right for the whole animation. */
+@keyframes floatUp {
+  0% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -60px) scale(1.1);
+    opacity: 0;
+  }
+}
+.anim-float-up {
+  animation: floatUp 800ms ease-out forwards;
+}
+
+/* #2 pressDown — ClickButton: 90ms press, 180ms release (implemented as
+   transition so it triggers on pointerdown, not on click) */
+.anim-pressable {
+  transition: transform 180ms var(--ease-out);
+}
+.anim-pressable:active,
+.anim-pressable.is-pressed {
+  transform: scale(0.96);
+  transition-duration: 90ms;
+  transition-timing-function: ease-out;
+}
+
+/* #3 breatheGlow — ClickButton idle: 3s ease-in-out infinite alternate */
+@keyframes breatheGlow {
+  from {
+    box-shadow: var(--glow-gold-soft);
+  }
+  to {
+    box-shadow: var(--glow-gold);
+  }
+}
+.anim-breathe-glow {
+  animation: breatheGlow 3s ease-in-out infinite alternate;
+}
+
+/* #4 pulseAffordable — 1.6s ease-in-out infinite; applied ONLY on the
+   expensive→affordable transition, removed after hover (JS) */
+@keyframes pulseAffordable {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: var(--glow-grow);
+  }
+}
+.anim-pulse-affordable {
+  animation: pulseAffordable 1.6s ease-in-out infinite;
+}
+
+/* #5 unlockGlow — 600ms ease-out flash + slight lift */
+@keyframes unlockGlow {
+  0% {
+    box-shadow: 0 0 28px rgba(232, 181, 77, 0.9);
+    transform: translateY(-2px);
+  }
+  100% {
+    box-shadow: none;
+    transform: translateY(0);
+  }
+}
+.anim-unlock-glow {
+  animation: unlockGlow 600ms var(--ease-out);
+}
+
+/* #6 badgePop — 350ms ease-pop, scale 0→1.15→1 */
+@keyframes badgePop {
+  0% {
+    transform: scale(0);
+  }
+  70% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.anim-badge-pop {
+  animation: badgePop 350ms var(--ease-pop);
+}
+
+/* #7 revealIn — 400ms ease-out, opacity 0→1 + translateY(8px→0) */
+@keyframes revealIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.anim-reveal-in {
+  animation: revealIn 400ms var(--ease-out);
+}
+
+/* #8 toastIn 250ms ease-out / toastOut 200ms ease-in */
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+.anim-toast-in {
+  animation: toastIn 250ms var(--ease-out);
+}
+.anim-toast-out {
+  animation: toastOut 200ms ease-in forwards;
+}
+
+/* #9 progressFill — width transition 300ms ease-out on every ProgressBar;
+   at 100% a brief gold-bright flash (200ms) */
+.anim-progress-fill {
+  transition: width 300ms ease-out;
+}
+@keyframes progressFlash {
+  0% {
+    box-shadow: 0 0 12px rgba(255, 217, 122, 0.9);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+.anim-progress-flash {
+  animation: progressFlash 200ms ease-out;
+}
+
+/* #10 shimmerGold — 900ms ease-in-out once, gradient sweeping across the
+   resource number (background-clip: text) */
+@keyframes shimmerGold {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.anim-shimmer-gold {
+  background-image: linear-gradient(
+    100deg,
+    var(--gold-bright) 20%,
+    rgba(255, 255, 255, 0.95) 50%,
+    var(--gold-bright) 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmerGold 900ms ease-in-out 1;
+}
+
+/* #11 prestigeFade — 1400ms total: fade-out 500ms ease-in → hold 400ms →
+   fade-in 500ms ease-out. The overlay element transitions opacity; the JS
+   sequence in App.tsx owns the timing. */
+.anim-prestige-overlay {
+  transition: opacity 500ms ease-in;
+}
+.anim-prestige-overlay.is-clearing {
+  transition: opacity 500ms var(--ease-out);
+}
+
+/* #12 modalIn — 220ms ease-out, scale(0.96→1) + fade; backdrop fades 220ms */
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.anim-modal-in {
+  animation: modalIn 220ms var(--ease-out);
+}
+.anim-backdrop-in {
+  animation: backdropIn 220ms var(--ease-out);
+}
+
+/* #13 countUp — 1200ms ease-out JS tween (OfflineModal); no CSS keyframes. */
+
+/* #14 buffRing — conic-gradient(var(--ember) X%, var(--ink-border) 0);
+   X is set from the game tick via the --ring custom property. No CSS animation. */
+
+/* #15 emberPulse — 1s ease-in-out infinite alternate while the buff is active */
+@keyframes emberPulse {
+  from {
+    text-shadow: none;
+    box-shadow: none;
+  }
+  to {
+    text-shadow: 0 0 10px rgba(240, 151, 90, 0.55);
+    box-shadow: var(--glow-ember-soft);
+  }
+}
+.anim-ember-pulse {
+  animation: emberPulse 1s ease-in-out infinite alternate;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion (04 §5): media query AND the manual Settings toggle   */
+/* (the .reduce-motion class on the app root mirrors these rules).      */
+/* #1 #3 #4 #10 #15 fully disabled; #11 becomes a plain 300ms fade;     */
+/* the rest keep only their opacity fade (no translate/scale).          */
+/* ------------------------------------------------------------------ */
+
+@keyframes fadeOnly {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-float-up,
+  .anim-breathe-glow,
+  .anim-pulse-affordable,
+  .anim-shimmer-gold,
+  .anim-ember-pulse {
+    animation: none;
+  }
+  .anim-shimmer-gold {
+    background-image: none;
+    -webkit-text-fill-color: initial;
+  }
+  .anim-pressable,
+  .anim-pressable:active,
+  .anim-pressable.is-pressed {
+    transition: none;
+    transform: none;
+  }
+  .anim-reveal-in,
+  .anim-toast-in,
+  .anim-modal-in,
+  .anim-unlock-glow,
+  .anim-badge-pop {
+    animation: fadeOnly 250ms ease-out;
+  }
+  .anim-toast-out {
+    animation: fadeOnly 200ms ease-in reverse forwards;
+  }
+  .anim-prestige-overlay,
+  .anim-prestige-overlay.is-clearing {
+    transition: opacity 300ms ease-out;
+  }
+}
+
+.reduce-motion .anim-float-up,
+.reduce-motion .anim-breathe-glow,
+.reduce-motion .anim-pulse-affordable,
+.reduce-motion .anim-shimmer-gold,
+.reduce-motion .anim-ember-pulse {
+  animation: none;
+}
+.reduce-motion .anim-shimmer-gold {
+  background-image: none;
+  -webkit-text-fill-color: initial;
+}
+.reduce-motion .anim-pressable,
+.reduce-motion .anim-pressable:active,
+.reduce-motion .anim-pressable.is-pressed {
+  transition: none;
+  transform: none;
+}
+.reduce-motion .anim-reveal-in,
+.reduce-motion .anim-toast-in,
+.reduce-motion .anim-modal-in,
+.reduce-motion .anim-unlock-glow,
+.reduce-motion .anim-badge-pop {
+  animation: fadeOnly 250ms ease-out;
+}
+.reduce-motion .anim-toast-out {
+  animation: fadeOnly 200ms ease-in reverse forwards;
+}
+.reduce-motion .anim-prestige-overlay,
+.reduce-motion .anim-prestige-overlay.is-clearing {
+  transition: opacity 300ms ease-out;
+}

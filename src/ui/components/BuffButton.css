@@ -1,0 +1,83 @@
+.buff-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 16px 6px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--ink-raised);
+  border: 1px solid var(--ember);
+  color: var(--parchment);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* the conic ring lives on a dedicated span so the pill keeps its own border */
+.buff-button__ring {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ember) var(--ring), var(--ink-border) 0);
+  -webkit-mask: radial-gradient(circle, transparent 58%, black 62%);
+  mask: radial-gradient(circle, transparent 58%, black 62%);
+  pointer-events: none;
+}
+
+.buff-button__icon {
+  position: relative;
+  z-index: 1;
+  margin: 2px;
+}
+
+.buff-button__label {
+  position: relative;
+  z-index: 1;
+}
+
+/* ready: slow ember pulse */
+@keyframes buffReadyPulse {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: var(--glow-ember);
+  }
+}
+.buff-button--pulse {
+  animation: buffReadyPulse 2.4s ease-in-out infinite;
+}
+.reduce-motion .buff-button--pulse {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .buff-button--pulse {
+    animation: none;
+  }
+}
+
+.buff-button--ready:hover {
+  background: var(--ink-hover);
+}
+
+/* active: ember fill, dark text, countdown */
+.buff-button--active {
+  background: var(--ember);
+  border-color: var(--ember);
+  color: var(--ink-deep);
+}
+.buff-button--active .buff-button__ring {
+  background: conic-gradient(var(--ink-deep) var(--ring), var(--ink-deep-25) 0);
+}
+
+/* cooldown: desaturated, muted */
+.buff-button--cooldown {
+  border-color: var(--ink-border);
+  color: var(--muted);
+  filter: saturate(0.55);
+}

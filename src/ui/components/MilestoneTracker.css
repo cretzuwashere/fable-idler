@@ -1,0 +1,40 @@
+.milestone-tracker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.milestone-tracker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.milestone-tracker__row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.milestone-tracker__labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.milestone-tracker__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--parchment);
+}
+
+.milestone-tracker__detail {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}

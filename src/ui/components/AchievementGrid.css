@@ -1,0 +1,35 @@
+.achievement-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.achievement-grid__cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 56px);
+  gap: 8px;
+}
+
+.achievement-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-btn);
+  font-size: 22px;
+  user-select: none;
+}
+
+.achievement-cell--locked {
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.achievement-cell--unlocked {
+  background: linear-gradient(160deg, var(--ink-raised), var(--ink-hover) 55%, var(--ink-raised));
+  border: 1px solid var(--gold-deep);
+  box-shadow: var(--glow-gold-soft);
+}

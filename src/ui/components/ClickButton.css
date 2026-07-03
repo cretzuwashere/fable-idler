@@ -1,0 +1,99 @@
+.click-area-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.click-button {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 30%, var(--ink-hover) 0%, var(--ink-raised) 45%, var(--ink) 100%);
+  border: 2px solid var(--gold-deep);
+  outline-offset: 4px;
+  box-shadow: var(--shadow-card), var(--glow-gold-inset);
+  position: relative;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* double border: a second gold ring inside */
+.click-button::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-deep);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.click-button__label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--gold);
+}
+
+.click-button:hover .click-button__label {
+  color: var(--gold-bright);
+}
+
+.click-button--buff {
+  border-color: var(--ember);
+}
+
+.click-button--buff::after {
+  border-color: var(--ember);
+}
+
+/* Floating numbers rise from just above the button */
+.click-floats {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.floating-number {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gold-bright);
+  white-space: nowrap;
+  text-shadow: var(--glow-gold-text);
+}
+
+.floating-number--buff {
+  color: var(--ember);
+  font-size: 18px;
+}
+
+.floating-number--static {
+  opacity: 1;
+}
+
+.click-guide {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--parchment-dim);
+  text-align: center;
+}
+
+/* Mobile: ≥200px disc, centered in the Weave tab (04 §3.3) */
+@media (max-width: 719px) {
+  .click-button {
+    width: 200px;
+    height: 200px;
+  }
+}
