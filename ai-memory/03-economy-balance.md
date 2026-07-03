@@ -1,5 +1,7 @@
 # 03 — Economy & Balance (Agent 2: Economy & Balance Designer)
 
+> **Notă v2 (2026-07-04):** extensia economiei v2 (Atelier, Stray Spark, Bookshelf, Relics, reancorarea bonusului de quills pe `lifetimeQuillsEarned`) e în `11-v2-economy.md` — cifrele v1 de aici rămân neschimbate și valide.
+
 > Toate formulele de mai jos sunt FINALE și gata de implementat în TypeScript. ID-urile sunt cele din `01-game-design.md`. Orice abatere de la design e marcată explicit cu **[DECIZIE DE CALIBRARE]** și justificată cu date din simulare (§9).
 
 ---

@@ -4,6 +4,8 @@
 
 > **⚠️ Notă de calibrare (adăugată la quality gate, Agent 9):** cifrele de balans din acest document sunt versiunea INIȚIALĂ de design. Valorile FINALE sunt în `03-economy-balance.md` (sursa de adevăr — vezi 03 §6/§10/§13) și în `src/engine/config.ts`. Diferențe principale: **+30% producție per Golden Quill** (nu +2%) și **Quill Resonance costă 2.500** (nu ~10.000).
 
+> **Notă v2 (2026-07-04):** extensia v2 (The Gilded Atelier, Stray Spark, The Bookshelf, Hall of Fables) e proiectată în `09-v2-game-design.md` — inclusiv reancorarea bonusului +30%/quill pe quills câștigate lifetime. Acest document rămâne contractul v1, neschimbat.
+
 ---
 
 ## 1. Fantezia centrală + ton vizual/narativ

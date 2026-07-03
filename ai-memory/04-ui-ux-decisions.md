@@ -1,6 +1,8 @@
 # 04 — UI/UX & Art Direction (Agent 4)
 
 > Contract vizual pentru Fable Idler. Agentul UI implementează EXACT ce e aici: token-urile CSS, componentele cu stările lor, animațiile cu duratele lor. Numele entităților rămân în engleză (contract din `01-game-design.md`). Textele UI ale jocului sunt în engleză (ton „bibliotecar excentric", vezi §9).
+>
+> **v2:** extensiile UI/UX (The Gilded Atelier, Stray Spark, The Bookshelf, Hall of Fables — panouri, animații #16–#23, testid-uri noi) sunt în `12-v2-ui-ux.md`; acest document rămâne contractul v1, neatins.
 
 ---
 

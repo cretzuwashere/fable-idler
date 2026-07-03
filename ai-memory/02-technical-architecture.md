@@ -1,5 +1,7 @@
 # 02 — Technical Architecture (Agent 3: Technical Architect)
 
+> **Extensia v2** (backend leaderboard, SaveDataV2 + migrare, engine Atelier/Spark/Bookshelf, compose cu serviciul `api`) e definită în `10-v2-architecture.md` — acest document rămâne contractul v1, neschimbat.
+
 > Aliniat la scheletul deja scris de orchestrator (package.json, Dockerfile, docker-compose.yml, vite.config.ts, playwright.config.ts, tsconfig.json — verificate pe disc la 2026-07-03). Nimic de aici nu contrazice scheletul; unde scheletul a decis deja (porturi, versiuni, profiluri compose), documentul îl preia ca atare.
 
 ---
