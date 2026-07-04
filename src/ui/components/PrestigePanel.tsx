@@ -7,14 +7,18 @@
 
 import { useState } from 'react';
 import {
+  atelierLevel,
+  bookmarkedUpgrades,
   canPrestige,
+  EDITORS_DUE_BONUS_QUILLS,
   formatNumber,
   PRESTIGE_DIVISOR,
   PRESTIGE_MIN_TOTAL_EARNED,
   prestigePreview,
   QUILL_BONUS,
+  UPGRADE_INDEX,
 } from '../../engine';
-import type { GameState } from '../../engine';
+import type { GameState, RunUpgradeId } from '../../engine';
 import { ICON } from '../icons';
 import { Modal } from './Modal';
 import { ProgressBar } from './ProgressBar';
@@ -33,6 +37,11 @@ export function PrestigePanel({ state, onPublish }: PrestigePanelProps) {
   const ready = canPrestige(state);
   const quills = prestigePreview(state);
   const totalEarned = state.run.totalEarned;
+  // v2: the passive bonus reads the LIFETIME total (GOLDEN RULE, 09 §1.1) —
+  // the wallet shown above it can drop at the Atelier, the % never does.
+  const lifetimeQuills = state.meta.stats.lifetimeQuillsEarned;
+  const hasEditorsDue = atelierLevel(state, 'editorsDue') >= 1;
+  const keptUpgrades = Object.keys(bookmarkedUpgrades(state)) as RunUpgradeId[];
 
   // Progress: teaser → bar to the 100k threshold; ready → bar toward the next quill.
   let barValue: number;
@@ -67,7 +76,7 @@ export function PrestigePanel({ state, onPublish }: PrestigePanelProps) {
       <div className="prestige-panel__quills num" data-testid="prestige-quills">
         <span aria-hidden="true">{ICON.goldenQuills}</span> {formatNumber(state.meta.goldenQuills)} Golden Quills
         <span className="prestige-panel__quill-bonus num">
-          +{Math.round(state.meta.goldenQuills * QUILL_BONUS * 100)}% production
+          +{Math.round(lifetimeQuills * QUILL_BONUS * 100)}% production
         </span>
       </div>
 
@@ -81,6 +90,12 @@ export function PrestigePanel({ state, onPublish }: PrestigePanelProps) {
         {ready ? (
           <span data-testid="prestige-preview" className="num">
             Publish now: +{formatNumber(quills)} <span aria-hidden="true">{ICON.goldenQuills}</span>
+            {hasEditorsDue && (
+              <em className="prestige-panel__due">
+                {' '}
+                (+{EDITORS_DUE_BONUS_QUILLS} Editor&apos;s Due)
+              </em>
+            )}
           </span>
         ) : (
           <span>The Tome is not ready…</span>
@@ -124,6 +139,13 @@ export function PrestigePanel({ state, onPublish }: PrestigePanelProps) {
               </ul>
             </div>
           </div>
+          {keptUpgrades.length > 0 && (
+            <p className="prestige-confirm__bookmarked">
+              Bookmarked:{' '}
+              <em>{keptUpgrades.map((id) => UPGRADE_INDEX[id].name).join(', ')}</em> survive the
+              reset.
+            </p>
+          )}
           <label className="prestige-confirm__ack">
             <input
               type="checkbox"

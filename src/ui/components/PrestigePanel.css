@@ -120,6 +120,20 @@
   color: var(--parchment-dim);
 }
 
+/* v2 (12 §2.3): Editor's Due breakdown + Second Bookmark keepers. */
+.prestige-panel__due {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--parchment-dim);
+  font-weight: 400;
+}
+
+.prestige-confirm__bookmarked {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--quill);
+}
+
 .prestige-confirm__ack {
   display: flex;
   align-items: center;

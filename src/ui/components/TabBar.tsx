@@ -10,6 +10,12 @@ export interface TabDef<T extends string> {
   label: string;
   icon?: string;
   testId?: string;
+  /** v2 (12 §1.1): violet underline/badge for meta tabs (Atelier, Hall). */
+  variant?: 'quill';
+  /** Badge dot: something is affordable/new inside the tab. */
+  badge?: boolean;
+  /** Act 2 staggered reveal (12 §1.4): animation-delay on first appearance. */
+  revealDelayMs?: number;
 }
 
 interface TabBarProps<T extends string> {
@@ -49,12 +55,25 @@ export function TabBar<T extends string>({ tabs, active, onSelect, ariaLabel }: 
           // aria-controls must only reference it from the selected tab.
           aria-controls={tab.id === active ? `tabpanel-${tab.id}` : undefined}
           tabIndex={tab.id === active ? 0 : -1}
-          className={`tab-bar__tab anim-reveal-in${tab.id === active ? ' is-active' : ''}`}
+          className={`tab-bar__tab anim-reveal-in${tab.id === active ? ' is-active' : ''}${
+            tab.variant === 'quill' ? ' tab-bar__tab--quill' : ''
+          }`}
+          style={
+            tab.revealDelayMs
+              ? { animationDelay: `${tab.revealDelayMs}ms`, animationFillMode: 'backwards' }
+              : undefined
+          }
           onClick={() => onSelect(tab.id)}
           data-testid={tab.testId ?? `tab-${tab.id}`}
         >
           {tab.icon && <span aria-hidden="true">{tab.icon} </span>}
           {tab.label}
+          {tab.badge && (
+            <span
+              className={`tab-bar__badge${tab.variant === 'quill' ? ' tab-bar__badge--quill' : ''}`}
+              aria-hidden="true"
+            />
+          )}
         </button>
       ))}
     </div>

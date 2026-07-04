@@ -47,3 +47,15 @@
 .bottom-nav__label {
   font-weight: 600;
 }
+
+/* v2 (12 §1.3): with 5 tabs the labels shrink to 11px — "Upgrades" still
+   fits at 375px / 5 = 75px per tab. */
+.bottom-nav--five .bottom-nav__item {
+  font-size: 11px;
+  padding: 6px 2px;
+}
+
+.bottom-nav__badge--quill {
+  background: var(--quill);
+  box-shadow: var(--glow-quill);
+}

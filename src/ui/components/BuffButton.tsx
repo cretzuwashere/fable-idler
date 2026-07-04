@@ -6,7 +6,7 @@
 
 import type { CSSProperties } from 'react';
 import {
-  BUFF,
+  buffCooldownMs,
   buffCooldownRemainingMs,
   buffDurationMs,
   buffRemainingMs,
@@ -35,11 +35,14 @@ export function BuffButton({ state }: { state: GameState }) {
   if (active) {
     mode = 'active';
     const remaining = buffRemainingMs(state, now);
-    ringPct = (remaining / buffDurationMs(state)) * 100;
+    // v2: a Standing Ovation window can be 2× the plain duration — the ring
+    // still starts full and drains monotonically (denominator adapts).
+    ringPct = (remaining / Math.max(buffDurationMs(state), remaining)) * 100;
     label = `${Math.ceil(remaining / 1000)}s`;
   } else if (!ready) {
     mode = 'cooldown';
-    ringPct = (1 - cooldownMs / BUFF.cooldownMs) * 100;
+    // v2: Restless Heart shortens the cooldown (90/75/60s) — read the live one.
+    ringPct = (1 - cooldownMs / buffCooldownMs(state)) * 100;
     label = `${Math.ceil(cooldownMs / 1000)}s`;
   } else {
     mode = 'ready';

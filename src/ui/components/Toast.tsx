@@ -1,19 +1,30 @@
 // Toast (04 §4.12) — bottom-right stack (above the bottom nav on mobile),
 // max 3 visible + queue, auto-dismiss 4s, pause on hover, dismiss on click,
-// aria-live="polite". Types: milestone / achievement / unlock / prestige.
+// aria-live="polite". Types: milestone / achievement / unlock / prestige
+// + v2 (12 §9.1): spark (gold-bright) / relic (violet) / fable (violet).
 // App owns the queue (fed by store.subscribeToEvents) — this file renders it.
 
 import { useEffect, useRef, useState } from 'react';
 import { ICON } from '../icons';
 import './Toast.css';
 
-export type ToastKind = 'milestone' | 'achievement' | 'unlock' | 'prestige';
+export type ToastKind =
+  | 'milestone'
+  | 'achievement'
+  | 'unlock'
+  | 'prestige'
+  // v2
+  | 'spark'
+  | 'relic'
+  | 'fable';
 
 export interface ToastData {
   id: number;
   kind: ToastKind;
   title: string;
   body?: string;
+  /** Per-toast icon override (e.g. the specific relic emoji). */
+  icon?: string;
 }
 
 const MAX_VISIBLE = 3;
@@ -24,6 +35,9 @@ const KIND_ICON: Record<ToastKind, string> = {
   achievement: ICON.achievements,
   unlock: ICON.inspiration,
   prestige: ICON.prestige,
+  spark: ICON.spark,
+  relic: ICON.hall,
+  fable: ICON.bookshelf,
 };
 
 interface ToastHostProps {
@@ -87,7 +101,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastData; onDismiss: (id: num
       data-toast-kind={toast.kind}
     >
       <span className="toast__icon icon-coin icon-coin--sm" aria-hidden="true">
-        {KIND_ICON[toast.kind]}
+        {toast.icon ?? KIND_ICON[toast.kind]}
       </span>
       <span className="toast__text">
         <span className="toast__title">{toast.title}</span>

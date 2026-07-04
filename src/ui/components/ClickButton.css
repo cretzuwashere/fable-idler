@@ -83,6 +83,31 @@
   opacity: 1;
 }
 
+/* v2 crit (12 §2.3): the FloatingNumber variant — 22px, gold-bright. */
+.floating-number--crit {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold-bright);
+}
+
+/* critFlash (#21) lives on an overlay ring so the disc never re-mounts. */
+.click-button__crit-flash {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* "A stroke of genius!" — 800ms fade under the button (12 §2.3). */
+.crit-caption {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--gold-bright);
+  text-shadow: var(--glow-gold-text);
+}
+
 .click-guide {
   margin: 4px 0 0;
   font-size: 14px;

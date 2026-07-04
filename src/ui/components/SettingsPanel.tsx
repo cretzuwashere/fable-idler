@@ -111,7 +111,12 @@ export function SettingsPanel({ state, onClose }: SettingsPanelProps) {
       >
         <div className="settings__section">
           <h3 className="settings__heading">Export save</h3>
-          <p className="settings__hint">Copy this string somewhere safe — it is your whole library.</p>
+          <p className="settings__hint">
+            Copy this string somewhere safe — it is your whole library.
+            {state.meta.settings.leaderboard !== undefined && (
+              <> It also carries your Hall of Fables seal — don&apos;t post it publicly.</>
+            )}
+          </p>
           <textarea
             ref={exportRef}
             className="settings__textarea"

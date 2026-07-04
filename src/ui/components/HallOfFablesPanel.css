@@ -1,0 +1,254 @@
+/* HallOfFablesPanel (12 §6) — quill-bordered leaderboard card. */
+
+.hall-panel {
+  background: var(--ink);
+  border: 1px solid var(--quill-deep);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+}
+
+.hall-panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.hall-panel__badge {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--parchment-dim);
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-btn);
+  padding: 8px 10px;
+}
+
+.hall-panel__local-only,
+.hall-panel__empty {
+  margin: 8px 0;
+  font-size: 14px;
+  color: var(--parchment-dim);
+}
+
+/* ---------------- opt-in ---------------- */
+
+.hall-optin {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hall-optin__heading {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--parchment);
+  margin: 0;
+}
+
+.hall-optin__label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hall-optin__input {
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-btn);
+  color: var(--parchment);
+  font-size: 14px;
+  padding: 9px 12px;
+}
+
+.hall-optin__input:focus-visible {
+  outline: 2px solid var(--quill);
+  outline-offset: 1px;
+}
+
+.hall-optin__input--error {
+  border-color: var(--danger);
+}
+
+.hall-optin__error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--danger);
+}
+
+.hall-optin__privacy {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hall-optin__claim {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hall-optin__spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--parchment-dim);
+  border-top-color: transparent;
+  animation: hallSpin 800ms linear infinite;
+}
+
+@keyframes hallSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hall-optin__spinner {
+    display: none; /* the "Sending word…" text carries the state (12 §6.1) */
+  }
+}
+
+.reduce-motion .hall-optin__spinner {
+  display: none;
+}
+
+/* ---------------- segmented control ---------------- */
+
+.hall-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  margin-bottom: 10px;
+}
+
+.hall-tabs__tab {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.hall-tabs__tab:hover {
+  color: var(--parchment);
+}
+
+.hall-tabs__tab.is-selected {
+  background: var(--quill-deep);
+  color: var(--parchment);
+}
+
+/* ---------------- table ---------------- */
+
+.hall-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.hall-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--ink-border);
+}
+
+.hall-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--ink-border);
+  color: var(--parchment-dim);
+}
+
+.hall-table__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+  color: var(--parchment);
+}
+
+.hall-table__rank {
+  width: 36px;
+}
+
+.hall-table__value {
+  text-align: right;
+}
+
+/* Own row: permanent static highlight (the 1200ms pulse is #20 on top). */
+.hall-table__row--self td {
+  background: var(--quill-tint);
+  color: var(--parchment);
+}
+
+.hall-table__row--self td:first-child {
+  box-shadow: inset 3px 0 0 var(--quill);
+}
+
+.hall-panel__self-rank {
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--parchment);
+  background: var(--quill-tint);
+  box-shadow: inset 3px 0 0 var(--quill);
+  border-radius: 0 var(--radius-btn) var(--radius-btn) 0;
+}
+
+/* ---------------- skeleton / footer ---------------- */
+
+.hall-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.hall-skeleton__row {
+  height: 22px;
+  border-radius: var(--radius-btn);
+  background: var(--ink-raised);
+}
+
+.hall-panel__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.hall-panel__updated {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hall-panel__refresh {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--quill);
+  padding: 6px 10px;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--quill-deep);
+}
+
+.hall-panel__refresh:hover:not(:disabled) {
+  background: var(--quill-tint);
+}
+
+.hall-panel__refresh:disabled {
+  color: var(--muted);
+  border-color: var(--ink-border);
+}

@@ -8,13 +8,14 @@
 
 import { memo, useEffect, useRef, useState } from 'react';
 import {
+  atelierLevel,
   bulkCost,
   costOf,
   formatNumber,
   formatRate,
   GENERATORS,
   generatorProduction,
-  isGeneratorRevealed,
+  isGeneratorVisibleInShop,
   maxAffordable,
   perSecond,
   QTY_MILESTONE_MULT,
@@ -39,8 +40,15 @@ export function GeneratorList({ state }: { state: GameState }) {
   const dispatch = useDispatch();
   const buyQty: BuyQty = state.meta.settings.buyQty ?? 1;
 
-  const revealed = GENERATORS.filter((g) => isGeneratorRevealed(state, g.id));
-  const nextHidden = GENERATORS.find((g) => !isGeneratorRevealed(state, g.id));
+  // v2: isGeneratorVisibleInShop is MANDATORY here (05 Engine v2) — without
+  // the Blueprint of Myths the mythEngine row must not exist AT ALL, not even
+  // as the "? ? ?" teaser (09 §1.3: it is the Atelier's surprise).
+  const revealed = GENERATORS.filter((g) => isGeneratorVisibleInShop(state, g.id));
+  const hasBlueprint = atelierLevel(state, 'blueprintOfMyths') >= 1;
+  const nextHidden = GENERATORS.find(
+    (g) =>
+      !isGeneratorVisibleInShop(state, g.id) && (g.id !== 'mythEngine' || hasBlueprint),
+  );
 
   return (
     <section className="generator-list" aria-label="Generators">
@@ -133,6 +141,22 @@ const GeneratorRow = memo(function GeneratorRow({ state, config, buyQty }: RowPr
         <div className="generator-row__name-line">
           <span className="generator-row__name">{config.name}</span>
           {owned > 0 && <span className="generator-row__owned num">×{owned} owned</span>}
+          {id === 'wanderingMuse' && atelierLevel(state, 'selfWritingContract') >= 1 && (
+            <Tooltip
+              content={
+                <>
+                  <span className="tooltip-title">Self-Writing Contract</span>
+                  <span className="tooltip-dim">
+                    The contract hires one whenever it costs under 1% of your ink.
+                  </span>
+                </>
+              }
+            >
+              <span className="generator-row__auto" tabIndex={0}>
+                auto
+              </span>
+            </Tooltip>
+          )}
           {mult > 1 && (
             <Tooltip
               content={

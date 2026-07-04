@@ -3,7 +3,8 @@
 // artifact). The function names are contract: Agent 8 uses them verbatim.
 // addInspiration / fastForward map onto the engine's debug actions (05 decision #12).
 
-import type { Action, GameState, GameStore } from '../engine';
+import type { Action, GameState, GameStore, SparkRewardKind } from '../engine';
+import { invokeForceSpark } from './hooks/useStraySpark';
 
 export interface FableTestHook {
   getState(): GameState;
@@ -13,6 +14,12 @@ export interface FableTestHook {
   /** Simulates the interval [now - ms, now] through real ticks (≤60s chunks). */
   fastForward(ms: number): void;
   saveNow(): void;
+  /**
+   * v2 (10 §4.3): spawn a Stray Spark IMMEDIATELY, bypassing the timer and the
+   * milestone gate. The tab must still be visible and the spark must still be
+   * clicked. `kind` fixes the reward deterministically; absent = normal roll.
+   */
+  forceSpark(kind?: SparkRewardKind): void;
 }
 
 declare global {
@@ -30,5 +37,6 @@ export function installTestHook(store: GameStore): void {
     addInspiration: (n: number) => store.dispatch({ type: 'debugAddInspiration', amount: n }),
     fastForward: (ms: number) => store.dispatch({ type: 'debugFastForward', ms }),
     saveNow: () => store.save(),
+    forceSpark: (kind?: SparkRewardKind) => invokeForceSpark(kind),
   };
 }

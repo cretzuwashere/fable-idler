@@ -39,6 +39,16 @@
   border-color: var(--gold-deep);
 }
 
+/* v2 kinds (12): spark = gold-bright (event), relic/fable = violet (meta) */
+.toast--spark {
+  border-color: var(--gold-bright);
+}
+
+.toast--relic,
+.toast--fable {
+  border-color: var(--quill);
+}
+
 .toast__text {
   display: flex;
   flex-direction: column;

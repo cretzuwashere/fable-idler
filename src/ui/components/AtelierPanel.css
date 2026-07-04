@@ -1,0 +1,364 @@
+/* AtelierPanel (12 §2–§3) — violet meta panel, rhymes with PrestigePanel. */
+
+.atelier-panel {
+  background: var(--ink);
+  border: 1px solid var(--quill-deep);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 0 16px 16px;
+}
+
+/* Sticky double-balance header inside the scrolling column (12 §2.1). */
+.atelier-panel__sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--ink);
+  padding: 16px 0 10px;
+  border-bottom: 1px solid var(--ink-border);
+  margin-bottom: 14px;
+}
+
+/* Mobile: the page itself scrolls under the app header + resource strip. */
+@media (max-width: 719px) {
+  .atelier-panel__sticky {
+    top: calc(var(--header-h-mobile) + 64px);
+  }
+}
+
+.atelier-panel__head {
+  margin-bottom: 4px;
+}
+
+.atelier-panel__subtitle {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--parchment-dim);
+}
+
+.atelier-balances {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.atelier-balances__label {
+  display: block;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.atelier-balances__purse-value {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--quill);
+  border-radius: var(--radius-btn);
+}
+
+.atelier-balances__lifetime {
+  text-align: right;
+}
+
+.atelier-balances__lifetime-value {
+  font-size: 13px;
+  color: var(--parchment-dim);
+}
+
+.atelier-balances__lifetime-note {
+  display: block;
+  font-size: 13px;
+  color: var(--parchment-dim);
+}
+
+.atelier-panel__golden-rule {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.atelier-panel__fragments {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--parchment-dim);
+}
+
+/* ---------------- upgrade cards ---------------- */
+
+.atelier-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 12px;
+}
+
+.atelier-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-card);
+  transition: border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+}
+
+.atelier-card--affordable {
+  border-color: var(--quill);
+  box-shadow: var(--glow-quill-soft);
+}
+
+.atelier-card--affordable:hover {
+  background: var(--quill-tint);
+}
+
+.atelier-card--expensive {
+  border-color: var(--ink-border);
+}
+
+.atelier-card--maxed {
+  filter: saturate(0.55);
+  opacity: 0.85;
+}
+
+/* Violet purchase flash — the Atelier's "just-bought" (300ms). */
+.atelier-card--flash {
+  border-color: var(--quill);
+  box-shadow: var(--glow-quill);
+}
+
+.atelier-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.atelier-card__name-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.atelier-card__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16.5px;
+  color: var(--parchment);
+}
+
+.atelier-card__check {
+  color: var(--quill);
+  font-weight: 700;
+}
+
+.atelier-card__pips {
+  color: var(--quill);
+  font-size: 11px;
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+
+.atelier-card__pip {
+  opacity: 0.45;
+}
+
+.atelier-card__pip.is-filled {
+  opacity: 1;
+}
+
+.atelier-card__desc {
+  font-size: 13px;
+  color: var(--parchment);
+}
+
+.atelier-card__now {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.atelier-card__flavor {
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--parchment-dim);
+}
+
+.atelier-card__buy-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+/* Buy button keeps the v1 semantics: GREEN means "you can afford it" —
+   everywhere in the game, including the violet Atelier (12 §2.2). */
+.atelier-buy {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: var(--radius-btn);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--ink-border);
+  background: var(--ink);
+  color: var(--muted);
+}
+
+.atelier-buy--affordable {
+  background: var(--grow-deep);
+  border-color: var(--grow);
+  color: var(--parchment);
+}
+
+.atelier-buy--affordable:hover {
+  box-shadow: var(--glow-grow);
+}
+
+.atelier-buy__cost {
+  font-weight: 700;
+}
+
+.atelier-buy--affordable .atelier-buy__cost {
+  color: var(--parchment);
+}
+
+.atelier-card__need {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---------------- Fully Commissioned ---------------- */
+
+.atelier-maxed {
+  margin-top: 14px;
+}
+
+.atelier-maxed__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--parchment-dim);
+  padding: 6px 8px;
+  border-radius: var(--radius-btn);
+  margin-bottom: 8px;
+}
+
+.atelier-maxed__toggle:hover {
+  background: var(--ink-hover);
+}
+
+.atelier-maxed__chevron {
+  display: inline-block;
+  transition: transform 180ms var(--ease-out);
+}
+
+.atelier-maxed__chevron.is-open {
+  transform: rotate(90deg);
+}
+
+/* ---------------- Relics of the Published (12 §3) ---------------- */
+
+.relics {
+  margin-top: 18px;
+}
+
+.relics__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--quill);
+  margin-bottom: 10px;
+}
+
+.relics__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .relics__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.relic-slot-wrap {
+  display: block;
+}
+
+.relic-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 12px 8px;
+  background: var(--ink-raised);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-card);
+  width: 100%;
+}
+
+/* Relics are the ONLY gold element in the Atelier — earned, not bought. */
+.relic-slot--unlocked {
+  border-color: var(--gold-deep);
+}
+
+.relic-slot--locked .relic-slot__icon {
+  filter: brightness(0.35) grayscale(1);
+}
+
+.relic-slot--locked .relic-slot__name {
+  color: var(--muted);
+}
+
+.relic-slot__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--parchment);
+}
+
+.relic-slot__effect {
+  font-size: 11.5px;
+  color: var(--parchment-dim);
+}
+
+.relic-slot__progress {
+  font-size: 12px;
+  color: var(--parchment-dim);
+}
+
+.relic-slot .progress-bar {
+  width: 100%;
+  height: 4px;
+}
+
+/* ---------------- confirmation dialog ---------------- */
+
+.atelier-confirm__lede {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.atelier-confirm__rule {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--parchment-dim);
+}
+
+.atelier-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

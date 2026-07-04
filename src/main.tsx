@@ -22,6 +22,7 @@ import {
 import type { GameState, OfflineReport } from './engine';
 import { App } from './ui/App';
 import { StoreProvider } from './ui/hooks/useGameStore';
+import { createLeaderboardClient } from './ui/leaderboard-client';
 import { OFFLINE_MODAL_UI_MIN_MS } from './ui/meta';
 import { installTestHook } from './ui/test-hook';
 
@@ -45,6 +46,11 @@ if (loaded) {
 
 const store = createGameStore(initialState);
 
+// Hall of Fables service layer (v2, 10 §2.5): a singleton beside the store.
+// It wires its own submit triggers (publish / 90s dirty / hidden) internally;
+// a build with VITE_API_URL='off' creates it permanently disabled.
+const leaderboard = createLeaderboardClient(store);
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Fable Idler: #root element is missing from index.html');
@@ -53,7 +59,7 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <StoreProvider store={store}>
-      <App offlineReport={offlineReport} />
+      <App offlineReport={offlineReport} leaderboard={leaderboard} />
     </StoreProvider>
   </StrictMode>,
 );

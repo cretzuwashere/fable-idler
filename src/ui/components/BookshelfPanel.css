@@ -1,0 +1,92 @@
+/* BookshelfPanel (12 §5) — CSS spines on gold-edged planks. Capped at ~3
+   spine rows with its own vertical scroll so it never pushes Milestones
+   below the fold on the desktop right column (12 Riscuri). */
+
+.bookshelf-panel {
+  background: var(--ink);
+  border: 1px solid var(--ink-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+}
+
+.bookshelf-panel__count {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  color: var(--parchment-dim);
+}
+
+.bookshelf-panel__count strong {
+  color: var(--parchment);
+}
+
+.bookshelf-panel__shelf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 3px 3px;
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 2px 0;
+}
+
+.bookshelf-spine-wrap {
+  /* the plank: each row of spines stands on a warm gold board */
+  display: inline-flex;
+  align-items: flex-end;
+  border-bottom: 3px solid var(--gold-deep);
+  background: linear-gradient(0deg, rgba(156, 114, 38, 0.12), transparent 14%);
+}
+
+.fable-spine {
+  position: relative;
+  border-radius: 2px 3px 3px 2px;
+  border: none;
+  cursor: pointer;
+  /* left-edge highlight + 1 horizontal ridge (inset shadows only) */
+  box-shadow:
+    inset 2px 0 0 var(--spine-edge),
+    inset 0 -14px 0 -13px rgba(0, 0, 0, 0.35);
+  flex: none;
+}
+
+.fable-spine--double-ridge {
+  box-shadow:
+    inset 2px 0 0 var(--spine-edge),
+    inset 0 -14px 0 -13px rgba(0, 0, 0, 0.35),
+    inset 0 18px 0 -17px rgba(0, 0, 0, 0.3);
+}
+
+.fable-spine:hover {
+  filter: brightness(1.15);
+}
+
+/* Gilded (≥5 quills): visible from across the room (12 §5). */
+.fable-spine--gilded {
+  background: linear-gradient(180deg, var(--gold), var(--gold-deep));
+  box-shadow:
+    inset 1px 0 0 var(--gold-bright),
+    inset -1px 0 0 var(--gold-bright),
+    inset 0 -14px 0 -13px rgba(0, 0, 0, 0.35);
+}
+
+/* Faded (v1 migration): the seed color, drained (12 §0). */
+.fable-spine--faded {
+  filter: grayscale(0.7);
+  opacity: 0.55;
+}
+
+.fable-spine--faded:hover {
+  filter: grayscale(0.7) brightness(1.15);
+}
+
+.bookshelf-tooltip__title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 15px;
+}
+
+.bookshelf-tooltip__faded {
+  font-style: italic;
+}

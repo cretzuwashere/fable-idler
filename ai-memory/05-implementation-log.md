@@ -1,5 +1,94 @@
 # 05 — Implementation Log
 
+## Agent UI v2 — Atelier, Bookshelf, Hall of Fables, Stray Spark (2026-07-04)
+
+### Status: COMPLET și VERDE (validat prin Docker + smoke Playwright)
+- `npx tsc --noEmit` — zero erori (prin `docker compose run --rm test-unit`).
+- `npx vitest run` — **19 fișiere / 297 teste trecute** (278 unit + 19 server), niciun test modificat de acest agent.
+- `npm run build` — verde: `dist/assets/index-Byv_Ly0-.js` 254.86 kB (gzip 79.80) + `index-Chdsxgvi.css` 52.06 kB (gzip 10.04).
+- `docker compose up --build -d web api` → ambele healthy; pagina 200, bundle 200, **`GET http://localhost:8080/api/health` → 200 prin nginx** (proxy funcțional); `docker compose stop api` → pagina rămâne 200, `/api/health` → 502 în <2s (resolver lazy OK); api repornit → 200. **web+api lăsate PORNITE**, volumul leaderboard resetat GOL după probe.
+- **3 smoke-uri Playwright în Docker** (scripturi one-off din scratchpad, NU în `tests/`, imaginea pin v1.49.1-noble, pe `http://web:80/?test=1`):
+  - **desktop (1280×720), 24/24 PASS:** inkBurst creditat + toast spark; pill quillFrenzy; tab-atelier/tab-hall/bookshelf după primul Publish; purse 100→99 la apprenticeMuse fără dialog; dialog de confirmare la blueprintOfMyths (12 🪶) + cumpărare; `per-second` NEschimbat de cumpărături; `atelier-lifetime` imobil la 100; 4 sloturi relics; mythEngine vizibil doar cu Blueprint + 150M; claim → tabel + rândul propriu + `data-state=active`; identitate în settings; achievement `nameInLights`; spark NU supraviețuiește reload-ului și nu acordă nimic; **zero erori/warninguri de consolă emise de aplicație**.
+  - **degradare API (route.abort pe `**/api/**`), 4/4 PASS:** badge courier + `data-state=offline`, joc complet funcțional, refresh manual silențios, zero erori de consolă ale aplicației.
+  - **mobil (375×812), 9/9 PASS:** 4 tab-uri pre-Publish (zero regresie v1), 5 post-Publish, fiecare ≥48px înălțime / ≥44px lățime, fără scroll orizontal, fără `tab-hall`, ordinea în Fable = Prestige→Bookshelf→Milestones→Achievements→Hall.
+- QA grep: `#[0-9a-fA-F]{3,6}` pe `src/ui` → hituri DOAR în `tokens.css` (+`animations.css` — ambele permise); zero `console.*` în `src/ui`.
+
+### ⚠️ Pentru Agentul E2E v2 (regresii de spec, NU de produs)
+1. **`04-unlocks.spec.ts` pică**: asertează hardcodat `achievements-count` = „1/14" — engine-ul v2 are **24** achievements, iar header-ul UI e dinamic (`{unlocked}/{ACHIEVEMENTS.length}`, cod v1 neatins). Specul trebuie actualizat la `1/24` (sau făcut dinamic). Restul: **10/11 spec-uri v1 verzi** pe stack-ul complet. `tests/e2e` era interzis acestui agent — rămâne al tău.
+2. **`Failed to load resource: net::ERR_FAILED / 502`** apare în consolă la scenariul de degradare (route.abort sau api oprit) — e logul de rețea al **Chromium-ului**, imposibil de suprimat din JS (fetch-ul e prins, aplicația NU emite nimic). Fixture-ul v1 numără ORICE `console.error` ⇒ specul 10b trebuie să filtreze mesajele care încep cu `Failed to load resource` (păstrând stricte `pageerror` + restul `console.error`).
+3. `forceSpark(kind?)` există în `__FABLE_TEST__` (tab vizibil obligatoriu); sub reduced-motion sparkul stă STATIC în slotul de colț — folosește-l pentru click determinist. Sparkul zboară 10s; `dispatchEvent('pointerdown')` e mai robust decât `click()` pe elementul în mișcare.
+4. Toast-urile au coadă (max 3 vizibile): după `addInspiration` masiv, toast-ul de spark intră în spatele cozii — testează recompensa din stare, nu din toast, sau prinde sparkul pe coadă goală.
+5. Post-prestige coloana centrală dispare până se re-ating milestone-urile de rundă (comportament v1): după `dispatch({type:'prestige'})` din hook, dă `addInspiration(100_000)` ca să revină tab-urile + PrestigePanel.
+
+### Fișiere create (UI)
+| Fișier | Rol |
+|---|---|
+| `src/ui/leaderboard-client.ts` | Mini-store singleton (pattern GameStore) creat în `main.tsx`: stări `disabled/idle(fără identitate)/ready/unreachable(+sealLost)`; fetch cu AbortController (GET 4s / POST 5s); backoff refresh 30→60→120→300s; cache nesecret `fable-idler-leaderboard-cache-v1`; identitatea prin `setSettings` (save imediat + `nameInLights` gratuit); triggere submit: claim, creșterea `tomesPublished` (store.subscribe), interval 90s dacă dirty, `visibilitychange→hidden` cu `keepalive`, manual; throttle 60s pe automate; 401 → drop identitate silențios + flag sealLost; **toate eșecurile silențioase, zero console** |
+| `src/ui/hooks/useStraySpark.ts` | Shell-ul deține TOT nedeterminismul spark (10 §3.1): timer spawn din `sparkIntervalRange(state)` (uniform), DOAR tab vizibil, gate `aLightAtTheWindow` verificat la fire (forceSpark îl ocolește), max 1, despawn la hidden + la 10s (`SPARK.flightMs`), kind rostogolit LA CLICK (`rollSparkKind(Math.random())`) → `dispatch collectSpark`; nimic în save; bridge modul-level `invokeForceSpark` pentru test-hook |
+| `src/ui/components/StraySpark.tsx` + `.css` | `StraySparkLayer` (fixed, z-70: sub toasts 80/modale, peste conținut) + `<button data-testid="stray-spark">` hitbox 48×48, miez 10px `--gold-bright` + `--spark-halo` + 2 puncte de trenă; lane ales LA SPAWN din 4 diagonale peste zona sigură cu keep-out rects (+24px: click-area, buff-button, spark-pill, prestige-button, header, tab-bar, bottom-nav, toast-container) prin sampling pe segment; fallback garantat banda 72–160px sub header; mobil: banda dintre ResourceHeader și nav, tăiată deasupra ClickButton; `pointerdown` (instant) + Enter/Space; `sparkBurst` #17 (8 particule + inel, failsafe removal); reduced-motion: slot static colț + fade. Tot aici: **`SparkBuffPill`** (`data-testid="spark-buff-pill"` + `data-buff`), inel conic din tick, bordură `--gold-bright`, durată totală cu Net L2 |
+| `src/ui/components/AtelierPanel.tsx` + `.css` | Header sticky dublu-sold: Purse (28px display `--quill`, `walletSpend` la scădere) / „Lifetime earned" + „→ +N% production, forever." (imobil, tabular-nums); microcopy anti-frică PERMANENT; contor 🧩 „N/5 · «word» more bind(s) a golden quill"; subtitlul normativ 12 §8; carduri cu stările affordable (bordură `--quill` + glow, buton VERDE — semantica v1)/expensive („Need N more 🪶")/leveled-partial (pips ●●○ + „Now: …")/maxed (secțiune colapsabilă „Fully Commissioned (N)", ✓ violet, pattern v1 Purchased); flash violet 300ms la cumpărare; confirmare Modal la cost ≥ `ATELIER_CONFIRM_THRESHOLD_QUILLS` (10, din `ui/meta.ts`) cu „Commission"/„Not yet" + rândul regulii de aur; secțiunea **Relics of the Published**: 4 sloturi mereu vizibile, locked = siluetă `brightness(0.35) grayscale` + „N/M tomes" + ProgressBar quill + tooltip complet, unlocked = bordură `--gold-deep` (singurul auriu din Atelier), `relicUnlock` #18 pe tranziție |
+| `src/ui/components/BookshelfPanel.tsx` + `.css` | Cotoare CSS pe scânduri cu bord auriu; seed vizual determinist (FNV pe titlu + n) → `--spine-{1..8}`, lățime 18–26px, înălțime 64–80px, 1–2 nervuri inset, muchie stângă `--spine-edge`; gilded = gradient gold + muchii `--gold-bright`; faded = grayscale(0.7)/0.55 fără dată; tooltip titlu italic display + „Tome #N · 12 Oct" + „Earned X in Y · +Z 🪶" / „The ink has faded…"; header „N fables · +P% production" cu cap „25/25 counted — the shelf is full of wonders (+50%)"; `bookSlideIn` #19 doar pe cotorul nou (clasa ținută 700ms); max-height 280px scroll propriu (nu împinge Milestones sub fold) |
+| `src/ui/components/HallOfFablesPanel.tsx` + `.css` | TOATE cele 10 stări din 12 §6.1; `data-state="local-only\|opt-in\|loading\|active\|offline\|empty"`; consumă DOAR leaderboard-client (zero fetch în componente); vizibil = montat ∧ IntersectionObserver ∧ `visibilityState` → primul GET la intrare + interval 60s; segmented control 4 scoruri; tabel top 20, rândul propriu `--quill-tint` + bordură stângă 3px SAU rândul `#N — you · valoare` sub tabel (niciodată ambele); `leaderboardRowHighlight` #20 la rank îmbunătățit; skeleton ×5 #22; „Update now" cu cooldown 5s (submit+refresh, ocolește throttle-urile); 409 → eroare inline cu inputul păstrat; validare client identică serverului la blur; „Sending word…" + spinner (ascuns sub reduced-motion); badge courier + „as of HH:MM" din cache la offline; badge seal la 401; local-only fără NICIUN request |
+
+### Fișiere modificate (UI)
+- `src/ui/App.tsx` — tab-urile per layout (desktop: Generators\|Upgrades\|Atelier\|Hall of Fables; tabletă: …\|Atelier\|Fable; mobil: 5 tab-uri DOAR post-`theGildedDoor`); Hall montat per-tab pe desktop / secțiune finală în Fable pe rest; Bookshelf sub PrestigePanel (dreapta desktop + în Fable); reveal „Actul 2" Bookshelf→Atelier→Hall cu delay 900/1150/1400ms (`ACT2_REVEAL_*`, `animation-fill-mode: backwards`, flag 5s la primul Publish); toast-urile v2 (spark cu cifre din `reward`, relic cu emoji-ul relicvei, fable cu titlu + „A reprint!" la duplicat, tutorialul spark o dată lifetime pe milestone-ul `aLightAtTheWindow` + cheia `SPARK_TUTORIAL_KEY`); chip-ul `golden-quills` = PORTOFEL + tooltip „Purse N 🪶 · Lifetime M 🪶 — your +P% production never decreases." + `walletSpend` la scădere (chip randat și când doar lifetime>0); `StraySparkLayer` + `SparkBuffPill` montate; `anyGeneratorAffordable` pe `isGeneratorVisibleInShop`; badge violet Atelier când ceva e affordable.
+- `src/ui/components/ClickButton.tsx\|.css` — crit: UN singur `Math.random()` per click → `dispatch({type:'click', critRoll})` + `isCritRoll` pe ACELAȘI roll pentru feedback; float `+X ✦` 22px `--gold-bright` cu `data-crit="true"`; `critFlash` #21 pe un overlay span (fără remount de buton); caption `crit-caption` 800ms; reduced-motion: static „+X ✦ (a stroke of genius!)" 500ms fără caption separat.
+- `src/ui/components/GeneratorList.tsx\|.css` — trecut pe `isGeneratorVisibleInShop` (mythEngine fără Blueprint nu există deloc, nici ca teaser „? ? ?"); badge pill violet „auto" pe rândul Wandering Muse cu Self-Writing Contract + tooltip-ul normativ.
+- `src/ui/components/PrestigePanel.tsx\|.css` — bonusul % citește `lifetimeQuillsEarned` (regula de aur; cifra de lângă 🪶 rămâne portofelul); preview „(+1 Editor's Due)" când e deținut; rând „Bookmarked: *nume reale* survive the reset." în dialog (din `bookmarkedUpgrades`).
+- `src/ui/components/BuffButton.tsx` — inelul de cooldown pe `buffCooldownMs(state)` (Restless Heart 90/75/60s); denominatorul inelului activ tolerează fereastra dublată de Standing Ovation.
+- `src/ui/components/OfflineModal.tsx` — eticheta „— Lucid Dreaming" doar la eficiență ≥0.75 (Reader's Letter singură dă 0.6).
+- `src/ui/components/Toast.tsx\|.css` — kind-urile noi `spark`(bordură `--gold-bright`)/`relic`/`fable`(violet) + override de icon per-toast.
+- `src/ui/components/TabBar.tsx\|.css` — `variant:'quill'` (underline+text violet), badge-dot (gold/quill), `revealDelayMs`.
+- `src/ui/components/BottomNav.tsx\|.css` — `bottom-nav--five` (label 11px), `badgeVariant:'quill'`, `revealDelayMs`.
+- `src/ui/components/SettingsPanel.tsx` — avertisment la Export când există identitate leaderboard (riscul #1 din 10).
+- `src/ui/test-hook.ts` — `forceSpark(kind?)` prin bridge-ul din `useStraySpark`.
+- `src/main.tsx` — `createLeaderboardClient(store)` (singleton; își montează singur triggerele) + prop `leaderboard` la `<App/>`.
+- NEATINSE: `src/engine/**` (zero bug-uri găsite care să ceară modificări), `package.json`, configs, `server/`, `tests/**`, `tokens.css`/`animations.css` (v2-urile erau deja pe disc și acoperă tot ce folosesc).
+
+### Contract data-testid FINAL v2 (tot ce e implementat efectiv; v1 neatins)
+| testid | Element / atribute |
+|---|---|
+| `tab-atelier` | tabul Atelier — TabBar ≥720px SAU BottomNav <720px (un singur element în DOM; nu există pre-`theGildedDoor`) |
+| `tab-hall` | tabul Hall of Fables — **DOAR desktop ≥1100px** |
+| `atelier-panel` / `atelier-purse` / `atelier-lifetime` / `atelier-fragments` | rădăcina / cele două solduri / contorul 🧩 „N/5" |
+| `atelier-upgrade-<id>` | cardul (cele 10 id-uri literale); după max intră în secțiunea colapsabilă — vizibil doar cu `atelier-maxed-toggle` expandat (pattern v1 „Purchased") |
+| `atelier-buy-<id>` | butonul de cumpărare (disabled = expensive) |
+| `atelier-maxed-toggle` | toggle-ul „Fully Commissioned (N)" *(adaos față de 12 — necesar E2E ca să ajungă la cardurile maxate)* |
+| `atelier-confirm-dialog` / `atelier-confirm` | dialogul ≥10 🪶 / butonul „Commission" |
+| `relic-<id>` (`data-state="locked\|unlocked"`) / `relic-progress-<id>` | sloturile de relicve / textul „N/M tomes" (doar locked) |
+| `stray-spark` | `<button>` zburător (pointerdown/Enter/Space); NU există decât în zbor |
+| `spark-buff-pill` (`data-buff="quillFrenzy\|gossipBonanza"`) | pill-ul secundar de buff, lângă BuffButton |
+| `bookshelf-panel` / `bookshelf-count` | raftul / header-ul „N fables · +P%" |
+| `fable-spine-<n>` (`data-gilded`, `data-faded`) | cotorul tomului #n (1-based), `<button>` cu aria-label titlu+tom |
+| `leaderboard-panel` (`data-state="local-only\|opt-in\|loading\|active\|offline\|empty"`) | rădăcina Hall — ținta E2E pe TOATE layouturile |
+| `leaderboard-nickname-input` / `leaderboard-join` / `leaderboard-error` | fluxul opt-in (eroarea acoperă 409/invalid/network, inline) |
+| `leaderboard-score-tab-<key>` | segmented control, chei: `lifetimeInspiration`, `tomesPublished`, `lifetimeQuills`, `fastestPublish` |
+| `leaderboard-table` / `leaderboard-row-self` / `leaderboard-rank-self` | tabelul top 20 / rândul propriu ÎN tabel / rândul „#N — you" SUB tabel (exclusive) |
+| `leaderboard-refresh` / `leaderboard-updated` / `leaderboard-offline` | Update now (cooldown 5s) / „Last updated Nm ago" sau „as of HH:MM" / badge-ul courier |
+| `generator-mythEngine` / `buy-mythEngine` | gratis prin pattern-ul v1 (nu se randează fără Blueprint) |
+| `floating-number` + `data-crit="true"` / `crit-caption` | float-ul de crit / caption-ul „A stroke of genius!" |
+| `toast` cu `data-toast-kind` NOU: `spark` / `relic` / `fable` | kind-urile v1 rămân |
+
+### Decizii / abateri documentate (față de 12)
+1. **Toast-tutorial spark la milestone-ul `aLightAtTheWindow`** (09 §5.2), nu la primul spark prins (12 §4.3.4 se contrazicea cu 09; textul „Catch it." are sens DOAR înainte de prindere). O dată lifetime prin `localStorage` `fable-idler-spark-tutorial-v1`.
+2. **`atelier-maxed-toggle`** — testid nou nespecificat în 12: cardurile maxate stau colapsate (pattern v1), altfel ar fi inaccesibile testelor.
+3. **Zbor spark implementat ca track (sparkFloat pe wrapper) + bob pe buton** — cele două transformări nu se bat; keep-out prin 25 de eșantioane pe segment (suficient pentru rect-uri de ≥48px cu inflare 24px).
+4. **Chip-ul `golden-quills` se randează și când `lifetimeQuills>0`** (nu doar portofel/tomes>0) — un jucător care a cheltuit tot nu trebuie să-și piardă chip-ul.
+5. **„Failed to load resource" din Chromium NU poate fi suprimat** — criteriul „zero erori consolă" e îndeplinit la nivelul aplicației (zero `console.*` emise, zero pageerror); vezi nota E2E #2.
+6. **Ordinea reveal-urilor Actului 2 = delay-uri CSS** (900/1150/1400ms de la mount, `ACT2_REVEAL_BASE/STAGGER` din `ui/meta.ts`) — panourile se montează sub overlay-ul de prestige (~500ms) și „intră" vizual după clear (1400ms), exact serializarea 12 §1.4; flag-ul se stinge după 5s (remount-urile ulterioare nu re-întârzie).
+7. **Claim eșuat pe rețea** → mesaj inline „The courier seems lost…" sub input (12 nu specifica acest sub-caz al opt-in-ului).
+8. **`buffCooldownMs`/denominatorul inelului** — retuș v1 necesar (BuffButton folosea constanta `BUFF.cooldownMs`; cu Restless Heart inelul ar fi mințit).
+9. **OfflineModal „— Lucid Dreaming" la ≥0.75** — cu Reader's Letter, 0.6 nu mai implică Lucid Dreaming (12 §2.3 nightOwlPact: „stringul corect").
+
+### De verificat vizual de QA (rămase)
+- Estetica lane-urilor spark pe tabletă (720–1099px) și cu coloana centrală îngustă; sloturile statice reduced-motion pe toate layouturile (aleg colțul corect, verificat doar logic).
+- `axe` DevTools pe AtelierPanel + HallOfFablesPanel (perechile de culori sunt cele validate în 04, dar auditul complet rămâne la QA).
+- FPS la 3 sparks prinși consecutiv (nodurile de burst au failsafe de curățare; măsurătoarea rămâne la QA).
+- Aspectul cotoarelor la 40+ fabule (scroll intern verificat logic la 280px, nu vizual).
+- Tab-navigare completă din tastatură pe fluxurile noi (toate controalele sunt `<button>`/`<input>` native; walkthrough-ul integral rămâne la QA).
+
+---
+
 ## Agent Engine v2 — Atelier, Spark, Fables, migrare, Myth Engine (2026-07-04)
 
 ### Status: COMPLET și VERDE

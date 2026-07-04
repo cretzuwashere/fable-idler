@@ -42,6 +42,32 @@
   transform: scaleX(1);
 }
 
+/* v2 (12 §1.1): the meta tabs (Atelier, Hall of Fables) are the only violet
+   tabs — underline + active color come from --quill, not --gold. */
+.tab-bar__tab--quill.is-active {
+  color: var(--quill);
+}
+
+.tab-bar__tab--quill::after {
+  background: var(--quill);
+}
+
+.tab-bar__badge {
+  position: absolute;
+  top: 8px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: var(--glow-gold);
+}
+
+.tab-bar__badge--quill {
+  background: var(--quill);
+  box-shadow: var(--glow-quill);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tab-bar__tab::after {
     transition: none;

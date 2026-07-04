@@ -67,7 +67,8 @@ export function OfflineModal({ report, reduceMotion, onClose }: OfflineModalProp
       </div>
       <p className="offline-modal__efficiency">
         at {Math.round(report.efficiency * 100)}% efficiency
-        {report.efficiency > 0.5 && <> — Lucid Dreaming</>}
+        {/* v2: The Reader's Letter alone gives 60% — only ≥75% means Lucid Dreaming */}
+        {report.efficiency >= 0.75 && <> — Lucid Dreaming</>}
         {report.cappedMs < report.elapsedMs && (
           <> · capped at {formatDuration(report.cappedMs)}</>
         )}

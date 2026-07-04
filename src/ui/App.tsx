@@ -1,15 +1,24 @@
-// App.tsx — layout (04 §3), progressive UI reveal (04 §6, driven ONLY by
-// engine milestone flags — no thresholds duplicated here), toast queue fed by
-// store.subscribeToEvents, prestigeFade sequence, offline + settings modals.
+// App.tsx — layout (04 §3 + 12 §1), progressive UI reveal (04 §6, driven ONLY
+// by engine milestone flags — no thresholds duplicated here), toast queue fed
+// by store.subscribeToEvents, prestigeFade sequence, offline + settings modals.
 //
 // Layouts: ≥1100px 3 zones (sticky left 340px) · 720–1099px 2 zones (Fable tab)
-// · <720px stack + 4-tab bottom nav. "Solo mode" (centered altar) until the
-// first reveal milestone / first achievement.
+// · <720px stack + bottom nav. "Solo mode" (centered altar) until the first
+// reveal milestone / first achievement.
+//
+// v2 (12): center tabs grow to Generators|Upgrades|Atelier|Hall of Fables on
+// desktop (Hall is a SECTION inside Fable on tablet/mobile); the mobile nav
+// gains a 5th Atelier tab after the first Publish; BookshelfPanel sits right
+// under PrestigePanel; the StraySparkLayer floats over everything (below
+// toasts/modals); "Act 2" reveals stagger Bookshelf → Atelier → Hall 250ms
+// apart as the prestige overlay clears.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ACHIEVEMENTS,
+  ATELIER_UPGRADES,
   bulkCost,
+  canBuyAtelierUpgrade,
   canPrestige,
   costOf,
   formatNumber,
@@ -17,43 +26,79 @@ import {
   GENERATORS,
   hasMilestone,
   hasUpgrade,
-  isGeneratorRevealed,
+  isGeneratorVisibleInShop,
   isUpgradeUnlocked,
   maxAffordable,
   prestigePreview,
+  QUILL_BONUS,
+  RELIC_INDEX,
   REVEAL_MILESTONES,
   UPGRADES,
 } from '../engine';
-import type { GameEvent, GeneratorId, OfflineReport } from '../engine';
+import type { GameEvent, GeneratorId, OfflineReport, SparkRewardSummary } from '../engine';
 import { AchievementGrid } from './components/AchievementGrid';
+import { AtelierPanel } from './components/AtelierPanel';
+import { BookshelfPanel } from './components/BookshelfPanel';
 import { BottomNav, type NavDef } from './components/BottomNav';
 import { BuffButton } from './components/BuffButton';
 import { ClickButton } from './components/ClickButton';
 import { GeneratorList } from './components/GeneratorList';
+import { HallOfFablesPanel } from './components/HallOfFablesPanel';
 import { IconCoin } from './components/IconCoin';
 import { MilestoneTracker } from './components/MilestoneTracker';
 import { OfflineModal } from './components/OfflineModal';
 import { PrestigePanel } from './components/PrestigePanel';
 import { ResourceHeader } from './components/ResourceHeader';
 import { SettingsPanel } from './components/SettingsPanel';
+import { SparkBuffPill, StraySparkLayer } from './components/StraySpark';
 import { StatsStrip } from './components/StatsStrip';
 import { TabBar, type TabDef } from './components/TabBar';
 import { ToastHost, type ToastData, type ToastKind } from './components/Toast';
 import { UpgradeList } from './components/UpgradeList';
 import { useDispatch, useGameEvents, useGameStore, useStore } from './hooks/useGameStore';
 import { useLayoutMode, usePrefersReducedMotion } from './hooks/useLayoutMode';
-import { ICON } from './icons';
-import { OFFLINE_MODAL_UI_MIN_MS } from './meta';
+import { useStraySpark } from './hooks/useStraySpark';
+import { ICON, RELIC_ICONS } from './icons';
+import type { LeaderboardClient } from './leaderboard-client';
+import {
+  ACT2_REVEAL_BASE_MS,
+  ACT2_REVEAL_STAGGER_MS,
+  OFFLINE_MODAL_UI_MIN_MS,
+  SPARK_TUTORIAL_KEY,
+} from './meta';
 import './App.css';
 
-type CenterTab = 'generators' | 'upgrades' | 'fable';
-type MobileTab = 'weave' | 'shop' | 'upgrades' | 'fable';
+type CenterTab = 'generators' | 'upgrades' | 'atelier' | 'hall' | 'fable';
+type MobileTab = 'weave' | 'shop' | 'upgrades' | 'atelier' | 'fable';
 
 interface PrestigeFx {
   quills: number;
 }
 
-export function App({ offlineReport }: { offlineReport: OfflineReport | null }) {
+/** One-shot lifetime flag for the spark tutorial toast (UI-only, 09 §5.2). */
+function sparkTutorialSeen(): boolean {
+  try {
+    return localStorage.getItem(SPARK_TUTORIAL_KEY) === '1';
+  } catch {
+    return true; // storage unavailable → skip the tutorial rather than repeat it
+  }
+}
+
+function markSparkTutorialSeen(): void {
+  try {
+    localStorage.setItem(SPARK_TUTORIAL_KEY, '1');
+  } catch {
+    /* non-fatal */
+  }
+}
+
+export function App({
+  offlineReport,
+  leaderboard,
+}: {
+  offlineReport: OfflineReport | null;
+  leaderboard: LeaderboardClient;
+}) {
   const state = useGameStore();
   const store = useStore();
   const dispatch = useDispatch();
@@ -61,20 +106,26 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
   const osReducedMotion = usePrefersReducedMotion();
   const reduceMotion = osReducedMotion || state.meta.settings.reduceMotion === true;
 
-  // ---- progressive reveal flags (engine milestones only, 04 §6) ----
+  // ---- progressive reveal flags (engine milestones only, 04 §6 / 12 §1) ----
   const genPanelVisible = hasMilestone(state, 'theFirstSpark');
   const upgradesTabVisible = hasMilestone(state, 'craftsmansTools');
   const achievementsVisible = hasMilestone(state, 'hallOfDeeds');
   const prestigeVisible = hasMilestone(state, 'thePublishersLetter');
+  const atelierVisible = hasMilestone(state, 'theGildedDoor');
+  const bookshelfVisible = hasMilestone(state, 'theFirstSpine');
+  const hallVisible = hasMilestone(state, 'wordTravelsFast');
   const fableVisible = achievementsVisible || prestigeVisible;
   const solo = !genPanelVisible && !fableVisible;
 
   // ---- toasts (max 3 visible + queue, in ToastHost) ----
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const toastId = useRef(1);
-  const pushToast = useCallback((kind: ToastKind, title: string, body?: string) => {
-    setToasts((prev) => [...prev, { id: toastId.current++, kind, title, body }]);
-  }, []);
+  const pushToast = useCallback(
+    (kind: ToastKind, title: string, body?: string, icon?: string) => {
+      setToasts((prev) => [...prev, { id: toastId.current++, kind, title, body, icon }]);
+    },
+    [],
+  );
   const dismissToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
@@ -82,10 +133,74 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
   // ---- resource shimmer on milestone unlock ----
   const [shimmerNonce, setShimmerNonce] = useState(0);
 
-  // ---- "While you were away" modal: bootstrap report (prop) OR a runtime
-  // gap > 60s routed through the offline path by the game loop (offline event).
+  // ---- "While you were away" modal ----
   const [activeOfflineReport, setActiveOfflineReport] = useState<OfflineReport | null>(
     offlineReport,
+  );
+
+  // ---- spark reward toasts (microcopy from 12 §8, numbers from the event) ----
+  const sparkToast = useCallback(
+    (reward: SparkRewardSummary) => {
+      const nowMs = Date.now();
+      switch (reward.kind) {
+        case 'inkBurst':
+          pushToast(
+            'spark',
+            'A stray spark!',
+            `+${formatNumber(reward.inspiration)} Inspiration, straight from the aether.`,
+          );
+          return;
+        case 'quillFrenzy': {
+          const secs = reward.buff ? Math.round((reward.buff.activeUntil - nowMs) / 1000) : 30;
+          pushToast('spark', 'The quill is frenzied!', `Clicks ×7 for ${secs}s. Write faster.`);
+          return;
+        }
+        case 'gossipBonanza': {
+          const secs = reward.buff ? Math.round((reward.buff.activeUntil - nowMs) / 1000) : 60;
+          pushToast(
+            'spark',
+            'Gossip Bonanza!',
+            `Muses, sprites and ravens produce ×5 for ${secs}s.`,
+          );
+          return;
+        }
+        case 'timeSlip':
+          pushToast(
+            'spark',
+            'A slip in time.',
+            'Your Moment of Inspiration returns at once — already lit.',
+          );
+          return;
+        case 'storyFragment': {
+          if (reward.boundQuill) {
+            pushToast(
+              'spark',
+              'Five fragments, one truth:',
+              `+${formatNumber(reward.quills)} Golden Quill${reward.quills > 1 ? 's' : ''}, bound by hand.`,
+              ICON.fragments,
+            );
+          } else {
+            const have = store.getState().meta.storyFragments;
+            pushToast(
+              'spark',
+              'A fragment of an untold story.',
+              `${have}/5 collected.`,
+              ICON.fragments,
+            );
+          }
+          return;
+        }
+        case 'goldenQuillDrop':
+          pushToast(
+            'spark',
+            'A golden quill, out of thin air.',
+            `The library pretends not to notice. +${formatNumber(reward.quills)} ${ICON.goldenQuills}`,
+            ICON.goldenQuills,
+          );
+          return;
+      }
+    },
+    [pushToast, store],
   );
 
   const handleEvent = useCallback(
@@ -102,6 +217,11 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
         const reveal = REVEAL_MILESTONES.find((m) => m.id === event.id);
         if (reveal) {
           pushToast('milestone', reveal.name, reveal.description);
+          // Spark tutorial — once per LIFETIME, at the first unlock (09 §5.2).
+          if (event.id === 'aLightAtTheWindow' && !sparkTutorialSeen()) {
+            markSparkTutorialSeen();
+            pushToast('spark', 'Something glimmers past the window.', 'Catch it.');
+          }
           return;
         }
         // quantity milestone: `qty:<generatorId>:<threshold>`
@@ -118,26 +238,93 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
           const pct = hasUpgrade(store.getState(), 'boundAnthology') ? 2 : 1;
           pushToast('achievement', achievement.name, `${achievement.description} · +${pct}% production`);
         }
+        return;
       }
-      // v2 events (atelierPurchase / sparkCollected / fablePenned / relicUnlocked)
-      // are ignored here for now — Agent UI v2 wires their toasts (12 §8).
+      // ---- v2 events (05 Engine v2 contract) ----
+      if (event.type === 'sparkCollected') {
+        sparkToast(event.reward);
+        return;
+      }
+      if (event.type === 'relicUnlocked') {
+        const relic = RELIC_INDEX[event.id];
+        pushToast(
+          'relic',
+          'A relic takes its place in the Atelier:',
+          relic.name,
+          RELIC_ICONS[event.id],
+        );
+        return;
+      }
+      if (event.type === 'fablePenned') {
+        const titles = store.getState().meta.fables.filter((f) => f.title === event.fable.title);
+        if (titles.length > 1) {
+          pushToast('fable', 'A reprint!', 'The shelf counts it but once.');
+        } else {
+          pushToast('fable', 'A new fable joins your shelf:', `“${event.fable.title}”`);
+        }
+        return;
+      }
+      // atelierPurchase: feedback is the card flash + walletSpend — no toast.
     },
-    [pushToast, store],
+    [pushToast, sparkToast, store],
   );
   useGameEvents(handleEvent);
+
+  // ---- Stray Spark (shell owns the timer + RNG — 10 §3.1) ----
+  const { spark, collect } = useStraySpark();
 
   // ---- tabs ----
   const [centerTab, setCenterTab] = useState<CenterTab>('generators');
   const [mobileTab, setMobileTab] = useState<MobileTab>('weave');
 
-  const centerTabs: TabDef<CenterTab>[] = [{ id: 'generators', label: 'Generators', testId: 'tab-generators' }];
+  // ---- "Act 2" staggered reveal at the FIRST Publish (12 §1.4) ----
+  const [act2, setAct2] = useState(false);
+  const act2Timer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (act2Timer.current !== null) window.clearTimeout(act2Timer.current);
+    },
+    [],
+  );
+  const act2Delay = (index: number): number =>
+    act2 ? ACT2_REVEAL_BASE_MS + index * ACT2_REVEAL_STAGGER_MS : 0;
+
+  // Atelier badge: an upgrade is affordable (12 §1.1 — violet dot).
+  const anyAtelierAffordable = ATELIER_UPGRADES.some((u) => canBuyAtelierUpgrade(state, u.id));
+
+  const centerTabs: TabDef<CenterTab>[] = [
+    { id: 'generators', label: 'Generators', testId: 'tab-generators' },
+  ];
   if (upgradesTabVisible) centerTabs.push({ id: 'upgrades', label: 'Upgrades', testId: 'tab-upgrades' });
-  if (layout === 'tablet' && fableVisible) centerTabs.push({ id: 'fable', label: 'Fable', testId: 'tab-fable' });
-  const activeCenterTab: CenterTab = centerTabs.some((t) => t.id === centerTab) ? centerTab : 'generators';
+  if (atelierVisible) {
+    centerTabs.push({
+      id: 'atelier',
+      label: 'Atelier',
+      testId: 'tab-atelier',
+      variant: 'quill',
+      badge: anyAtelierAffordable,
+      revealDelayMs: act2Delay(1),
+    });
+  }
+  if (layout === 'desktop' && hallVisible) {
+    centerTabs.push({
+      id: 'hall',
+      label: 'Hall of Fables',
+      testId: 'tab-hall',
+      variant: 'quill',
+      revealDelayMs: act2Delay(2),
+    });
+  }
+  if (layout === 'tablet' && fableVisible) {
+    centerTabs.push({ id: 'fable', label: 'Fable', testId: 'tab-fable' });
+  }
+  const activeCenterTab: CenterTab = centerTabs.some((t) => t.id === centerTab)
+    ? centerTab
+    : 'generators';
 
   // mobile badges: something new to buy / a decision waiting (04 §3.3)
   const anyGeneratorAffordable = GENERATORS.some((g) => {
-    if (!isGeneratorRevealed(state, g.id)) return false;
+    if (!isGeneratorVisibleInShop(state, g.id)) return false;
     const qty = state.meta.settings.buyQty ?? 1;
     if (qty === 'max') return maxAffordable(state, g.id) >= 1;
     const cost = qty === 1 ? costOf(state, g.id) : bulkCost(state, g.id, qty);
@@ -150,12 +337,26 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
       state.run.inspiration >= u.cost,
   );
 
-  const mobileNavItems: NavDef<MobileTab>[] = [{ id: 'weave', label: 'Weave', icon: ICON.inspiration, testId: 'tab-weave' }];
+  const mobileNavItems: NavDef<MobileTab>[] = [
+    { id: 'weave', label: 'Weave', icon: ICON.inspiration, testId: 'tab-weave' },
+  ];
   if (genPanelVisible) {
     mobileNavItems.push({ id: 'shop', label: 'Shop', icon: ICON.shop, badge: anyGeneratorAffordable, testId: 'tab-shop' });
   }
   if (upgradesTabVisible) {
     mobileNavItems.push({ id: 'upgrades', label: 'Upgrades', icon: ICON.upgrades, badge: anyUpgradeAffordable, testId: 'tab-upgrades' });
+  }
+  if (atelierVisible) {
+    // The 5th tab exists ONLY post-Publish (12 §1.3) — fresh runs keep the v1 nav.
+    mobileNavItems.push({
+      id: 'atelier',
+      label: 'Atelier',
+      icon: ICON.atelier,
+      badge: anyAtelierAffordable,
+      badgeVariant: 'quill',
+      testId: 'tab-atelier',
+      revealDelayMs: act2Delay(1),
+    });
   }
   if (fableVisible) {
     mobileNavItems.push({ id: 'fable', label: 'Fable', icon: ICON.prestige, badge: canPrestige(state), testId: 'tab-fable' });
@@ -165,14 +366,28 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
   // ---- modals ----
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // ---- wallet chip: walletSpend (#23) when the purse DECREASES ----
+  const wallet = state.meta.goldenQuills;
+  const lifetimeQuills = state.meta.stats.lifetimeQuillsEarned;
+  const prevWallet = useRef(wallet);
+  const [walletNonce, setWalletNonce] = useState(0);
+  useEffect(() => {
+    if (wallet < prevWallet.current) setWalletNonce((n) => n + 1);
+    prevWallet.current = wallet;
+  }, [wallet]);
+
   // ---- prestigeFade (04 §5 #11): fade-out 500ms → hold 400ms → fade-in 500ms ----
-  // The quills value also lives in a ref so finishPrestige never runs a side
-  // effect (pushToast) inside a state updater — updaters must stay pure
-  // (StrictMode double-invokes them and would double the toast).
   const [prestigeFx, setPrestigeFx] = useState<PrestigeFx | null>(null);
   const prestigeFxRef = useRef<PrestigeFx | null>(null);
   const handlePublish = useCallback(() => {
-    const quills = prestigePreview(store.getState());
+    const current = store.getState();
+    const quills = prestigePreview(current);
+    if (current.meta.tomesPublished === 0) {
+      // First Publish → Act 2: Bookshelf → Atelier → Hall reveal stagger.
+      setAct2(true);
+      if (act2Timer.current !== null) window.clearTimeout(act2Timer.current);
+      act2Timer.current = window.setTimeout(() => setAct2(false), 5000);
+    }
     prestigeFxRef.current = { quills };
     setPrestigeFx({ quills });
   }, [store]);
@@ -194,15 +409,29 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
       <ResourceHeader state={state} shimmerNonce={shimmerNonce} />
       <ClickButton state={state} reduceMotion={reduceMotion} showGuide={solo} />
       <BuffButton state={state} />
+      <SparkBuffPill state={state} />
       {genPanelVisible && <StatsStrip state={state} />}
     </div>
   );
 
-  const fableStack = (
+  const hallPanel = hallVisible ? (
+    <HallOfFablesPanel
+      state={state}
+      client={leaderboard}
+      onToast={(title, body) => pushToast('unlock', title, body, ICON.hall)}
+      revealDelayMs={act2Delay(2)}
+    />
+  ) : null;
+
+  /** Prestige → Bookshelf → Milestones → Achievements (→ Hall on tablet/mobile).
+   *  The section order is contract (12 §1.2/§1.3). */
+  const fableStack = (includeHall: boolean) => (
     <div className="fable-stack">
       {prestigeVisible && <PrestigePanel state={state} onPublish={handlePublish} />}
+      {bookshelfVisible && <BookshelfPanel state={state} revealDelayMs={act2Delay(0)} />}
       {genPanelVisible && <MilestoneTracker state={state} />}
       {achievementsVisible && <AchievementGrid state={state} />}
+      {includeHall && hallPanel}
     </div>
   );
 
@@ -215,7 +444,11 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
     >
       {activeCenterTab === 'generators' && <GeneratorList state={state} />}
       {activeCenterTab === 'upgrades' && <UpgradeList state={state} />}
-      {activeCenterTab === 'fable' && fableStack}
+      {activeCenterTab === 'atelier' && <AtelierPanel state={state} />}
+      {/* Hall tab (desktop only): mounted ⇒ visible — the 60s refresh rule
+          becomes structural (12 §1.1). */}
+      {activeCenterTab === 'hall' && hallPanel}
+      {activeCenterTab === 'fable' && fableStack(true)}
     </div>
   );
 
@@ -237,9 +470,20 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
           <h1 className="app-header__title">Fable Idler</h1>
         </div>
         <div className="app-header__side">
-          {(state.meta.goldenQuills > 0 || state.meta.tomesPublished > 0) && (
-            <span className="app-header__quills num" data-testid="golden-quills" title="Golden Quills">
-              <span aria-hidden="true">{ICON.goldenQuills}</span> {formatNumber(state.meta.goldenQuills)}
+          {(wallet > 0 || state.meta.tomesPublished > 0 || lifetimeQuills > 0) && (
+            <span
+              key={walletNonce}
+              className={`app-header__quills num${walletNonce > 0 ? ' anim-wallet-spend' : ''}`}
+              data-testid="golden-quills"
+              // v2 semantics (12 §2.1): the chip shows the PURSE; the tooltip
+              // carries the lifetime anchor of the production bonus.
+              title={`Purse ${formatNumber(wallet)} ${ICON.goldenQuills} · Lifetime ${formatNumber(
+                lifetimeQuills,
+              )} ${ICON.goldenQuills} — your +${Math.round(
+                lifetimeQuills * QUILL_BONUS * 100,
+              )}% production never decreases.`}
+            >
+              <span aria-hidden="true">{ICON.goldenQuills}</span> {formatNumber(wallet)}
               {layout !== 'mobile' && <span className="app-header__quills-label"> Golden Quills</span>}
             </span>
           )}
@@ -267,12 +511,14 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
               <div className="altar altar--mobile">
                 <ClickButton state={state} reduceMotion={reduceMotion} showGuide={solo} />
                 <BuffButton state={state} />
+                <SparkBuffPill state={state} />
                 {genPanelVisible && <StatsStrip state={state} />}
               </div>
             )}
             {activeMobileTab === 'shop' && <GeneratorList state={state} />}
             {activeMobileTab === 'upgrades' && <UpgradeList state={state} />}
-            {activeMobileTab === 'fable' && fableStack}
+            {activeMobileTab === 'atelier' && <AtelierPanel state={state} />}
+            {activeMobileTab === 'fable' && fableStack(true)}
           </div>
           {mobileNavItems.length > 1 && (
             <BottomNav items={mobileNavItems} active={activeMobileTab} onSelect={setMobileTab} />
@@ -287,9 +533,16 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
               {centerPanel}
             </section>
           )}
-          {showRight && <aside className="col-right anim-reveal-in">{fableStack}</aside>}
+          {showRight && <aside className="col-right anim-reveal-in">{fableStack(false)}</aside>}
         </main>
       )}
+
+      <StraySparkLayer
+        spark={spark}
+        reduceMotion={reduceMotion}
+        layout={layout}
+        onCollect={collect}
+      />
 
       <ToastHost toasts={toasts} onDismiss={dismissToast} />
 
