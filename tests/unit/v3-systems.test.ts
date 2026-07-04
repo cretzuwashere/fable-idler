@@ -241,6 +241,37 @@ describe('Clockwork Understudy — auto-buy every generator, deterministically',
     expect(chunked.run.inspiration).toBeCloseTo(oneShot.run.inspiration, 6);
     expect(chunked.run.totalEarned).toBeCloseTo(oneShot.run.totalEarned, 6);
   });
+
+  it('Clockwork stays deterministic when mid-tick production CROSSES a revealAt', () => {
+    // Regression for the quality-gate finding: the auto-buy probe used to freeze
+    // totalEarned at tick-start, so a generator revealed by production earned
+    // DURING the tick became a best-payback candidate in a chopped walk but not
+    // in a one-shot tick — the pick (not just the rate) diverged. The probe now
+    // carries the accrued totalEarned, so both walks agree. Start just below the
+    // Story Loom reveal (65_000) with a big Muse count so a 60s window crosses it.
+    const s = makeState((base) => {
+      base.run.totalEarned = 64_900; // < storyLoom.revealAt (65_000)
+      base.run.inspiration = 64_900;
+      base.run.generators.wanderingMuse = 300; // heavy production → crosses 65k fast
+      base.run.generators.inkSprite = 80;
+      base.run.generators.talkingRaven = 40;
+      base.run.generators.enchantedQuill = 20;
+      base.meta.atelier = { selfWritingContract: 1, clockworkUnderstudy: 1 };
+      base.lastTickAt = 0;
+    });
+    const oneShot = tick(s, 60_000, 60_000);
+    let chunked = s;
+    for (let i = 1; i <= 600; i++) chunked = tick(chunked, i * 100, 100); // 600×100ms
+    // The FINDING was about WHICH generators get bought diverging when a reveal
+    // is crossed mid-tick — that is exactly what these two assertions pin down.
+    // (totalEarned itself may differ by the KNOWN, documented rate-side case: a
+    // reveal/qty milestone unlocked mid-window raises the rate earlier in the
+    // chopped walk than the one-shot — see the sibling determinism test, which
+    // pre-unlocks everything to isolate the buy schedule. Here we deliberately
+    // let a reveal fire to prove the buy DECISIONS still agree regardless.)
+    expect(chunked.run.generators).toEqual(oneShot.run.generators);
+    expect(chunked.run.lastAutoBuyAt).toBe(oneShot.run.lastAutoBuyAt);
+  });
 });
 
 // ---------------------------------------------------------------------------

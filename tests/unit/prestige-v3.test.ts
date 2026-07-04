@@ -10,6 +10,7 @@ import {
   publishTheTome,
   quillsForTotalEarned,
   seedInspirationForNextRun,
+  totalEarnedForQuills,
 } from '../../src/engine';
 import { makeState } from './helpers';
 
@@ -93,6 +94,61 @@ describe('monotonicity — non-decreasing across the whole domain', () => {
         expect(q).toBeGreaterThanOrEqual(prev);
         prev = q;
       }
+    }
+  });
+});
+
+describe('totalEarnedForQuills — the inverse the PrestigePanel bar/caption use', () => {
+  // The floor for q quills is where the q-th quill unlocks; feeding it back
+  // through quillsForTotalEarned must return exactly q across ALL three segments.
+  it('round-trips: quillsForTotalEarned(totalEarnedForQuills(q)) === q', () => {
+    for (const q of [1, 2, 3, 10, 50, 99, 100, 101, 158, 215, 464, 999, 1000, 1001, 1778, 3162, 5623]) {
+      const floor = totalEarnedForQuills(q);
+      // The floor is the exact unlock point of the q-th quill.
+      expect(quillsForTotalEarned(floor)).toBe(q);
+      // Strictly below the floor (by more than one whole quill's worth of span,
+      // to clear the +1e-9 continuity epsilon baked into the forward formula)
+      // yields fewer quills — so the bar is genuinely mid-fill, never pinned.
+      const belowFloor = totalEarnedForQuills(q - 1);
+      const justBelow = floor - (floor - belowFloor) * 1e-6;
+      expect(quillsForTotalEarned(justBelow)).toBeLessThan(q);
+      expect(quillsForTotalEarned(justBelow)).toBeGreaterThanOrEqual(q - 1);
+    }
+  });
+
+  it('is monotonic and matches the v1 closed form in segment 1', () => {
+    // Segment 1: floor = q² · 1e5.
+    expect(totalEarnedForQuills(1)).toBe(1e5);
+    expect(totalEarnedForQuills(2)).toBe(4e5);
+    expect(totalEarnedForQuills(100)).toBe(1e9); // knee 1
+    let prev = -1;
+    for (let q = 0; q <= 6000; q += 7) {
+      const te = totalEarnedForQuills(q);
+      expect(te).toBeGreaterThanOrEqual(prev);
+      prev = te;
+    }
+  });
+
+  it('q ≤ 0 needs no earnings', () => {
+    expect(totalEarnedForQuills(0)).toBe(0);
+    expect(totalEarnedForQuills(-4)).toBe(0);
+  });
+
+  it('the PrestigePanel bar stays in [0,1) across the whole range (was pinned/negative before the fix)', () => {
+    // Reproduce the panel math on the NET total for a spread of quill counts,
+    // one unit above each floor: barValue must be a small positive fraction,
+    // never < 0 (old bug in seg 1 with Editor's Due) nor ≥ 1 (old bug in segs 2-3).
+    for (const q of [3, 100, 158, 464, 1000, 1778]) {
+      const floor = totalEarnedForQuills(q);
+      const next = totalEarnedForQuills(q + 1);
+      const netTotalEarned = floor + (next - floor) * 0.01; // 1% into the bar
+      const barQuills = quillsForTotalEarned(netTotalEarned);
+      const currentFloor = totalEarnedForQuills(barQuills);
+      const nextTarget = totalEarnedForQuills(barQuills + 1);
+      const span = nextTarget - currentFloor;
+      const barValue = span > 0 ? (netTotalEarned - currentFloor) / span : 1;
+      expect(barValue).toBeGreaterThanOrEqual(0);
+      expect(barValue).toBeLessThan(1);
     }
   });
 });

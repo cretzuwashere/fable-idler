@@ -97,6 +97,16 @@ export function tick(state: GameState, nowMs: number, dtMs: number): GameState {
         autoBuyBoundary &&
         t - lastAutoBuyAt >= SELF_WRITING_CONTRACT.autoBuyIntervalMs
       ) {
+        // Rebuild the probe with the totalEarned accrued so far THIS tick, so a
+        // generator whose revealAt is crossed by mid-tick production becomes
+        // auto-buyable at this boundary — identical WHICHEVER way the interval is
+        // chopped (a chunked walk would otherwise reveal it early; a single 60s
+        // tick would freeze totalEarned at the start). Keeps Clockwork's pick,
+        // not just its rate, deterministic under chopping (v3 §auto-buy).
+        probe = {
+          ...state,
+          run: { ...state.run, generators, totalEarned: state.run.totalEarned + gained },
+        };
         const maxCost = SELF_WRITING_CONTRACT.autoBuyMaxCostFraction * inspiration;
         const target: GeneratorId | null = clockworkOn
           ? bestPaybackGenerator(probe, maxCost, isGeneratorVisibleInShop, marginalProduction)
@@ -108,7 +118,10 @@ export function tick(state: GameState, nowMs: number, dtMs: number): GameState {
           inspiration -= cost;
           generators = { ...generators, [target]: generators[target] + 1 };
           lastAutoBuyAt = t;
-          probe = { ...state, run: { ...state.run, generators } };
+          probe = {
+            ...state,
+            run: { ...state.run, generators, totalEarned: state.run.totalEarned + gained },
+          };
         }
       }
     }

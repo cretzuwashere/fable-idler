@@ -1,15 +1,16 @@
-// save.ts — versioned serialization (v2), migration chain, corruption guard,
+// save.ts — versioned serialization (v3), migration chain, corruption guard,
 // base64 export/import. The ONLY engine module allowed to touch storage —
 // and even that is injectable (StorageLike) so tests never need a DOM.
 //
-// Key decisions (02 §5 + 10 §3.3):
+// Key decisions (02 §5 + 10 §3.3 + 14 §8):
 // - localStorage key stays "fable-idler-save-v1" (historic name; the REAL
-//   version lives IN the payload — decided in 02 §5, confirmed for v2).
+//   version lives IN the payload — decided in 02 §5, kept through v2 and v3).
 // - corrupted payloads are MOVED to "fable-idler-save-v1:corrupt" (recoverable
 //   manually) and the game falls back to a fresh state — load NEVER crashes.
-// - CURRENT_SAVE_VERSION = 2; MIGRATIONS[1] performs the real v1→v2 migration
-//   with the exact defaults from 10 §3.3 (lifetimeQuillsEarned = wallet,
-//   faded fables, startedAt = 0 sentinel, …).
+// - CURRENT_SAVE_VERSION = 3; the migration chain is v1→v2→v3. MIGRATIONS[1]
+//   performs the real v1→v2 migration (10 §3.3: lifetimeQuillsEarned = wallet,
+//   faded fables, startedAt = 0 sentinel, …); MIGRATIONS[2] the additive v2→v3
+//   step (14 §8: seededInspiration = 0, everything else derived).
 
 import {
   ATELIER_UPGRADES,
@@ -18,6 +19,7 @@ import {
   ACHIEVEMENT_IDS,
   SPARK,
   STANDING_OVATION_DURATION_MULT,
+  UNIQUE_BONUSES,
   UPGRADES,
 } from './config';
 import { createFadedFable } from './fables';
@@ -183,14 +185,22 @@ const MAX_FABLE_TITLE_LENGTH = 120;
 /** Defensive cap on stored fables (uniqueFableCount is O(n) per selector call). */
 const MAX_FABLES = 5_000;
 
+/** The largest spark-reward multiplier the engine can apply to a buff duration:
+ *  Sparkcatcher's Net L2 (×2) × The City Dreams of You (Sleeping City unique, ×2)
+ *  = ×4 (spark.ts sparkRewardMult). A save from a deep run with the Sleeping City
+ *  unique active legitimately holds an expiry at savedAt + duration × 4; clamping
+ *  at ×2 would halve a genuinely-earned buff on reload. */
+const MAX_SPARK_REWARD_MULT = SPARK.netRewardMult * (UNIQUE_BONUSES.sleepingCity?.sparkRewardMult ?? 1);
+
 function sanitizeSparkBuff(x: unknown, savedAt: number): SparkBuffState | null {
   if (!isRecord(x)) return null;
   const kind = x.kind;
   if (kind !== 'quillFrenzy' && kind !== 'gossipBonanza') return null;
-  // The engine can never write an expiry beyond savedAt + duration × Net L2.
+  // The engine can never write an expiry beyond savedAt + duration × the max
+  // spark-reward multiplier (Net L2 × Sleeping City = ×4).
   const maxDurationMs =
     (kind === 'gossipBonanza' ? SPARK.gossip.durationMs : SPARK.frenzy.durationMs) *
-    SPARK.netRewardMult;
+    MAX_SPARK_REWARD_MULT;
   return {
     kind,
     activeUntil: Math.min(nonNegativeNumber(x.activeUntil, 0) ?? 0, savedAt + maxDurationMs),

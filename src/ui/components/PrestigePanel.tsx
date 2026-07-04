@@ -12,10 +12,12 @@ import {
   canPrestige,
   EDITORS_DUE_BONUS_QUILLS,
   formatNumber,
-  PRESTIGE_DIVISOR,
   PRESTIGE_MIN_TOTAL_EARNED,
+  prestigeNetTotalEarned,
   prestigePreview,
+  quillsForTotalEarned,
   QUILL_BONUS,
+  totalEarnedForQuills,
   UPGRADE_INDEX,
 } from '../../engine';
 import type { GameState, RunUpgradeId } from '../../engine';
@@ -37,6 +39,13 @@ export function PrestigePanel({ state, onPublish }: PrestigePanelProps) {
   const ready = canPrestige(state);
   const quills = prestigePreview(state);
   const totalEarned = state.run.totalEarned;
+  // The bar/caption track the SEGMENTED formula on the NET total earned (te −
+  // seed), and on quills WITHOUT the Editor's Due / Divine Royalties flat bonus
+  // (those add quills but never move a totalEarned threshold). Using the preview
+  // quills or raw totalEarned here would desync the bar across the whole v3
+  // range and even in the v1 range once Editor's Due is owned.
+  const netTotalEarned = prestigeNetTotalEarned(state);
+  const barQuills = quillsForTotalEarned(netTotalEarned);
   // v2: the passive bonus reads the LIFETIME total (GOLDEN RULE, 09 §1.1) —
   // the wallet shown above it can drop at the Atelier, the % never does.
   const lifetimeQuills = state.meta.stats.lifetimeQuillsEarned;
@@ -50,9 +59,10 @@ export function PrestigePanel({ state, onPublish }: PrestigePanelProps) {
     barValue = totalEarned / PRESTIGE_MIN_TOTAL_EARNED;
     barCaption = `First quill at ${formatNumber(PRESTIGE_MIN_TOTAL_EARNED)}`;
   } else {
-    const currentFloor = quills * quills * PRESTIGE_DIVISOR;
-    const nextTarget = (quills + 1) * (quills + 1) * PRESTIGE_DIVISOR;
-    barValue = (totalEarned - currentFloor) / (nextTarget - currentFloor);
+    const currentFloor = totalEarnedForQuills(barQuills);
+    const nextTarget = totalEarnedForQuills(barQuills + 1);
+    const span = nextTarget - currentFloor;
+    barValue = span > 0 ? (netTotalEarned - currentFloor) / span : 1;
     barCaption = `Next quill at ${formatNumber(nextTarget)}`;
   }
 

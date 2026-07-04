@@ -40,6 +40,7 @@ async function startApp(options?: {
   dataFile?: string;
   rateLimits?: { submitPerMin?: number; readPerMin?: number };
   ttlDays?: number;
+  maxEntries?: number;
   startNow?: number;
 }): Promise<TestApp> {
   const dir = options?.dataFile ? path.dirname(options.dataFile) : makeTmpDir();
@@ -50,6 +51,7 @@ async function startApp(options?: {
     now: () => fakeNow,
     rateLimits: options?.rateLimits,
     ttlDays: options?.ttlDays,
+    maxEntries: options?.maxEntries,
   });
   await new Promise<void>((resolve) => {
     app.listen(0, resolve);
@@ -144,6 +146,47 @@ describe('POST /api/leaderboard/submit — claim', () => {
     expect(tomes.json.me).toEqual({ rank: 1, value: 14 });
     const quills = await getTop(base, `?by=lifetimeQuillsEarned&playerId=${claim.json.playerId}`);
     expect(quills.json.me).toEqual({ rank: 1, value: 41 });
+  });
+});
+
+describe('POST /api/leaderboard/submit — entry cap (DoS ceiling)', () => {
+  it('refuses NEW claims past maxEntries with 503 leaderboard_full + Retry-After', async () => {
+    const { base } = await startApp({ maxEntries: 2, rateLimits: { submitPerMin: 100 } });
+    expect((await submit(base, { nickname: 'One', scores: scores() })).status).toBe(200);
+    expect((await submit(base, { nickname: 'Two', scores: scores() })).status).toBe(200);
+    const third = await submit(base, { nickname: 'Three', scores: scores() });
+    expect(third.status).toBe(503);
+    expect(third.json.error).toBe('leaderboard_full');
+    expect(third.res.headers.get('retry-after')).toBe('3600');
+  });
+
+  it('existing players can still UPDATE (token) even when the store is full', async () => {
+    const { base } = await startApp({ maxEntries: 1, rateLimits: { submitPerMin: 100 } });
+    const claim = await submit(base, { nickname: 'Solo', scores: scores() });
+    expect(claim.status).toBe(200);
+    // Store is full for NEW claims…
+    expect((await submit(base, { nickname: 'Nope', scores: scores() })).status).toBe(503);
+    // …but the existing player's token update goes through.
+    const upd = await submit(base, {
+      nickname: 'Solo',
+      token: claim.json.token,
+      scores: scores({ lifetimeInspiration: 9999 }),
+    });
+    expect(upd.status).toBe(200);
+  });
+
+  it('a TTL-GC pass frees a slot before rejecting (stale entries do not permanently block)', async () => {
+    const { base, tick } = await startApp({
+      maxEntries: 1,
+      ttlDays: 90,
+      rateLimits: { submitPerMin: 100 },
+    });
+    expect((await submit(base, { nickname: 'Old', scores: scores() })).status).toBe(200);
+    // Full: a new claim is rejected while 'Old' is fresh.
+    expect((await submit(base, { nickname: 'FreshOne', scores: scores() })).status).toBe(503);
+    // Age 'Old' past the TTL → the claim path's GC pass evicts it, freeing a slot.
+    tick(91 * 86_400_000);
+    expect((await submit(base, { nickname: 'FreshTwo', scores: scores() })).status).toBe(200);
   });
 });
 
@@ -456,5 +499,38 @@ describe('persistence', () => {
     // and the fresh (empty) server accepts new claims
     const claim = await submit(base, { nickname: 'Phoenix', scores: scores() });
     expect(claim.status).toBe(200);
+  });
+
+  it('rejects an entry whose tokenHash is not a 64-hex SHA-256 digest (load-time hygiene)', async () => {
+    const dir = makeTmpDir();
+    const dataFile: string = path.join(dir, 'leaderboard.json');
+    // A structurally-valid entry but with a non-hex tokenHash: the loader must
+    // treat the file as corrupt (back it up, start empty) rather than admit it.
+    fs.writeFileSync(
+      dataFile,
+      JSON.stringify({
+        version: 1,
+        entries: [
+          {
+            playerId: 'p1',
+            nickname: 'Tampered',
+            nicknameLower: 'tampered',
+            tokenHash: 'not-a-hex-digest',
+            scores: { lifetimeInspiration: 1, tomesPublished: 0, lifetimeQuillsEarned: 0, fastestPublishMs: null },
+            createdAt: T0,
+            updatedAt: T0,
+          },
+        ],
+      }),
+    );
+    const { base } = await startApp({ dataFile });
+    const health = await (await fetch(`${base}/api/health`)).json();
+    expect(health.entries).toBe(0);
+    const backups: string[] = fs
+      .readdirSync(dir)
+      .filter((f: string) => f.startsWith('leaderboard.json.corrupt-'));
+    expect(backups).toHaveLength(1);
+    // The nickname is free again (the tampered entry never loaded).
+    expect((await submit(base, { nickname: 'Tampered', scores: scores() })).status).toBe(200);
   });
 });

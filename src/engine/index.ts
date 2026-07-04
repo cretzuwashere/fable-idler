@@ -221,6 +221,7 @@ export {
   publishTheTome,
   quillsForTotalEarned,
   seedInspirationForNextRun,
+  totalEarnedForQuills,
 } from './prestige';
 
 // Offline

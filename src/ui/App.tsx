@@ -32,7 +32,9 @@ import {
   prestigePreview,
   QTY_FINALE_MULT,
   QTY_FINALE_THRESHOLD,
+  QTY_MILESTONE_THRESHOLDS,
   QTY_STEP_MULT,
+  QTY_THRESHOLDS_V3,
   QUILL_BONUS,
   RELIC_INDEX,
   REVEAL_MILESTONES,
@@ -238,6 +240,15 @@ export function App({
           const threshold = Number(thresholdStr);
           const uThreshold = uniqueThreshold(store.getState());
           const bonus = UNIQUE_BONUS_INFO[generatorId as GeneratorId];
+          // A production-DOUBLING threshold is one the engine actually multiplies
+          // by in qtyMilestoneMultiplier: the v1 set (25/50/100) or the v3 steps
+          // (150/300/400). The finale (500) and the unique threshold are handled
+          // separately. Crucially, when The Hundredth Telling relic pulls the
+          // unique threshold down to 150, the 200 badge is NEITHER unique NOR a
+          // doubling threshold — it must not claim a doubling that never happens.
+          const doubling =
+            QTY_MILESTONE_THRESHOLDS.includes(threshold) ||
+            (QTY_THRESHOLDS_V3.includes(threshold) && threshold !== QTY_FINALE_THRESHOLD);
           if (threshold === uThreshold && bonus) {
             pushToast('milestone', `${cfg.name}: ${bonus.name}`, `${threshold} owned — ${bonus.effect}`);
           } else if (threshold === QTY_FINALE_THRESHOLD) {
@@ -246,11 +257,19 @@ export function App({
               `${cfg.name} ×${QTY_FINALE_MULT}!`,
               `${threshold} owned — a grand finale for the deep shelves.`,
             );
-          } else {
+          } else if (doubling) {
             pushToast(
               'milestone',
               `${cfg.name} ×${QTY_STEP_MULT}!`,
               `${threshold} owned — their production doubles.`,
+            );
+          } else {
+            // Ownership-only badge (e.g. 200 once the relic fired the unique at
+            // 150): no production multiplier applies — say so honestly.
+            pushToast(
+              'milestone',
+              `${cfg.name}: ${threshold} owned`,
+              `${threshold} of them line the shelves.`,
             );
           }
         }

@@ -1,9 +1,11 @@
 // config.ts — THE single place for every balance number in the game.
 // v1 numbers are FINAL per ai-memory/03-economy-balance.md; v2 numbers are
 // FINAL per ai-memory/11-v2-economy.md (which overrides 09-v2-game-design.md
-// where they differ: inkBurst 45s not 900s, Thunderous Applause 20s not 60s,
-// Atelier total 92 quills). No other module (and no UI code) may hardcode
-// balance values.
+// where they differ: inkBurst 45s not 900s, Thunderous Applause 20s not 60s);
+// v3 numbers are FINAL per ai-memory/14-v3-longevity.md. The Atelier now holds
+// 16 upgrades totalling 470,852 quills to fully commission (the v2-era "92
+// quills" figure was the 10-upgrade v2 Atelier — historic). No other module
+// (and no UI code) may hardcode balance values.
 
 import type {
   AchievementConfig,
@@ -829,7 +831,8 @@ export const REVEAL_MILESTONES: readonly RevealMilestoneConfig[] = [
 ];
 
 // ===========================================================================
-// v2 — The Gilded Atelier (11 §2; cost total 92 quills)
+// The Gilded Atelier (v2 11 §2 + v3 14 §7) — 16 upgrades, 470,852 quills total
+// to fully commission (the v2-only subset was 10 upgrades / 92 quills).
 // ===========================================================================
 
 export const ATELIER_UPGRADES: readonly AtelierUpgradeConfig[] = [

@@ -35,6 +35,8 @@ export interface CreateAppOptions {
   now?: () => number;
   /** Days of inactivity before GC removes an entry; 0 disables GC. */
   ttlDays?: number;
+  /** Hard ceiling on distinct entries; new CLAIMs past it get 503. */
+  maxEntries?: number;
   rateLimits?: { submitPerMin?: number; readPerMin?: number };
 }
 

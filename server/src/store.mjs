@@ -11,6 +11,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const DESC_METRICS = new Set(['lifetimeInspiration', 'tomesPublished', 'lifetimeQuillsEarned']);
+/** A stored token hash is exactly a SHA-256 hex digest. Validated at load so a
+ *  hand-edited/corrupt file cannot inject a non-hex hash (harmless today —
+ *  findByToken's length guard already rejects it — but keeps the file honest). */
+const TOKEN_HASH_RE = /^[0-9a-f]{64}$/;
 
 /**
  * @typedef {{
@@ -55,7 +59,8 @@ export function createStore({ dataFile, now = Date.now, ttlDays = 90 }) {
         if (
           !e || typeof e !== 'object' ||
           typeof e.playerId !== 'string' || typeof e.nickname !== 'string' ||
-          typeof e.nicknameLower !== 'string' || typeof e.tokenHash !== 'string' ||
+          typeof e.nicknameLower !== 'string' ||
+          typeof e.tokenHash !== 'string' || !TOKEN_HASH_RE.test(e.tokenHash) ||
           !e.scores || typeof e.scores !== 'object' ||
           typeof e.createdAt !== 'number' || typeof e.updatedAt !== 'number'
         ) {

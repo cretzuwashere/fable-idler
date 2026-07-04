@@ -177,7 +177,7 @@ Fable Idler/
 │   │   ├── offline.ts          # offline report (efficiency + cap, relic/Atelier-aware)
 │   │   ├── selectors.ts        # ALL derived values (per-second, click power + crits, multipliers)
 │   │   ├── tick.ts             # pure tick(state, now, dt) — delta-time deterministic, incl. auto-buy
-│   │   ├── save.ts             # versioned schema v2, v1→v2 migration, export/import, corruption guard
+│   │   ├── save.ts             # versioned schema v3, v1→v2→v3 migration, export/import, corruption guard
 │   │   ├── format-numbers.ts   # 1.23K … 1.23e35
 │   │   ├── game-loop.ts        # createGameStore(): setInterval shell, dispatch, autosave, events
 │   │   └── index.ts            # the engine's public API — UI imports only from here
@@ -397,7 +397,9 @@ docker compose up -d --build       # web on :8080 + internal leaderboard api
 
 - **Player saves are not your problem** — the game is fully client-side; every player's progress lives in their own browser `localStorage`. Backing up the server backs up the leaderboard, nothing else.
 - **Be honest about anti-cheat:** scores are **client-authoritative**. The server validates shape and ranges, hashes tokens, and rate-limits per IP (10 submits/min, 60 reads/min via the `X-Real-IP` nginx sets) — but it cannot verify a score was actually earned. This is a friendly "on trust" leaderboard, suitable for a community, not for serious competition.
-- Tunables via environment on `api`: `LEADERBOARD_DATA_FILE`, `LEADERBOARD_TTL_DAYS` (default 90), `RATE_SUBMIT_PER_MIN`, `RATE_READ_PER_MIN`.
+- **If you terminate TLS at your own proxy in front of `web`,** the per-IP rate limiting needs one line of config or it becomes *global* (every player shares the same forwarded IP — the proxy's — so the whole community shares 10 submits/min). Either (a) have your front proxy set `X-Real-IP` to the real client IP, or (b) uncomment the `set_real_ip_from <your-proxy-CIDR>;` + `real_ip_header X-Forwarded-For;` lines in [`nginx.conf`](nginx.conf) so the bundled nginx trusts the forwarded client IP. Hitting `:8080` directly (no front proxy) already keys correctly on the un-spoofable socket address.
+- **The store has a hard entry cap** (`LEADERBOARD_MAX_ENTRIES`, default 100 000 ≈ 26 MB) so a botnet of fresh IPs cannot fill the disk/RAM with permanent claims — new *claims* past the cap get `503 leaderboard_full` (a TTL GC pass runs first); existing players' token *updates* are never blocked.
+- Tunables via environment on `api`: `LEADERBOARD_DATA_FILE`, `LEADERBOARD_TTL_DAYS` (default 90), `LEADERBOARD_MAX_ENTRIES` (default 100 000), `RATE_SUBMIT_PER_MIN`, `RATE_READ_PER_MIN`.
 
 ---
 

@@ -267,9 +267,13 @@ describe('hostile v2 payloads — sanitization of the NEW fields', () => {
     const clamped = tampered((j) => {
       j.run.sparkBuff = { kind: 'gossipBonanza', activeUntil: 9e15 };
     });
+    // The max legit window is duration × the LARGEST spark-reward multiplier the
+    // engine can apply: Sparkcatcher's Net L2 (×2) × The City Dreams of You
+    // (Sleeping City unique, ×2) = ×4. (Quality-gate fix: a ×2-only clamp used
+    // to halve a genuinely-earned deep-run buff — gossip 240s → 120s — on reload.)
     expect(clamped!.run.sparkBuff).toEqual({
       kind: 'gossipBonanza',
-      activeUntil: 555 + SPARK.gossip.durationMs * SPARK.netRewardMult,
+      activeUntil: 555 + SPARK.gossip.durationMs * SPARK.netRewardMult * 2,
     });
   });
 

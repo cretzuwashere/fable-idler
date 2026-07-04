@@ -18,6 +18,7 @@ import {
   SAVE_BACKUP_KEY,
   SAVE_KEY,
   serializeState,
+  SPARK,
   STANDING_OVATION_DURATION_MULT,
 } from '../../src/engine';
 import type { GameState, Migration } from '../../src/engine';
@@ -164,6 +165,24 @@ describe('import sanitization — states the engine itself cannot produce', () =
   it('legitimate buff timestamps survive the clamp untouched', () => {
     const data = tampered(() => {});
     expect(data!.run.buff).toEqual({ activeUntil: 111, cooldownUntil: 222 });
+  });
+
+  it('spark-buff clamp allows the ×4 window a deep run legitimately earns (Net L2 × Sleeping City)', () => {
+    // frenzy base 30s; Sparkcatcher's Net L2 (×2) × The City Dreams of You (×2)
+    // = ×4 → the engine writes now + 120_000. A ×2-only clamp would halve it.
+    const legit = 555 + SPARK.frenzy.durationMs * SPARK.netRewardMult * 2; // 555 + 120_000
+    const data = tampered((j) => {
+      j.run.sparkBuff = { kind: 'quillFrenzy', activeUntil: legit };
+    });
+    expect(data!.run.sparkBuff).toEqual({ kind: 'quillFrenzy', activeUntil: legit });
+  });
+
+  it('spark-buff clamp still caps a hostile far-future expiry at savedAt + duration × 4', () => {
+    const data = tampered((j) => {
+      j.run.sparkBuff = { kind: 'gossipBonanza', activeUntil: 9e15 };
+    });
+    // gossip base 60s × 4 = 240_000.
+    expect(data!.run.sparkBuff!.activeUntil).toBe(555 + SPARK.gossip.durationMs * SPARK.netRewardMult * 2);
   });
 
   it('repairs inspiration > totalEarned by lifting totalEarned (invariant: balance ≤ run earnings)', () => {

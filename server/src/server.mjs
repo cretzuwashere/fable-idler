@@ -7,15 +7,16 @@ import { createApp } from './app.mjs';
 const port = Number(process.env.PORT ?? 3000);
 const dataFile = process.env.LEADERBOARD_DATA_FILE ?? '/data/leaderboard.json';
 const ttlDays = Number(process.env.LEADERBOARD_TTL_DAYS ?? 90);
+const maxEntries = Number(process.env.LEADERBOARD_MAX_ENTRIES ?? 100_000);
 const rateLimits = {
   submitPerMin: Number(process.env.RATE_SUBMIT_PER_MIN ?? 10),
   readPerMin: Number(process.env.RATE_READ_PER_MIN ?? 60),
 };
 
-const app = createApp({ dataFile, ttlDays, rateLimits });
+const app = createApp({ dataFile, ttlDays, maxEntries, rateLimits });
 
 app.listen(port, () => {
-  console.log(`[leaderboard] listening on :${port} (data: ${dataFile}, ttl: ${ttlDays}d, limits: ${rateLimits.submitPerMin}/${rateLimits.readPerMin} per min)`);
+  console.log(`[leaderboard] listening on :${port} (data: ${dataFile}, ttl: ${ttlDays}d, max: ${maxEntries} entries, limits: ${rateLimits.submitPerMin}/${rateLimits.readPerMin} per min)`);
 });
 
 let shuttingDown = false;

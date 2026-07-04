@@ -51,6 +51,27 @@ export function quillsForTotalEarned(totalEarned: number): number {
   );
 }
 
+/**
+ * Inverse of quillsForTotalEarned: the SMALLEST net totalEarned that yields at
+ * least `quills` quills — i.e. the exact floor at which the q-th quill unlocks.
+ * Mirrors the segmented formula piecewise (same knees/coefficients) so the
+ * PrestigePanel bar/caption stay correct across the ENTIRE v3 range, not just
+ * below the first knee (14 §5.1). q ≤ 0 → 0 (no earnings needed for 0 quills).
+ */
+export function totalEarnedForQuills(quills: number): number {
+  if (quills <= 0) return 0;
+  // Segment 1 (q ≤ 100, te ≤ 1e9): te = q² · PRESTIGE_DIVISOR.
+  if (quills <= 100) return quills * quills * PRESTIGE_DIVISOR;
+  // Segment 2 (100 < q ≤ 1000, 1e9 < te ≤ 1e15):
+  //   q = coef2 · (te/knee1)^exp2  ⇒  te = knee1 · (q/coef2)^(1/exp2).
+  if (quills <= 1000) {
+    return PRESTIGE_V3.knee1 * Math.pow(quills / PRESTIGE_V3.coef2, 1 / PRESTIGE_V3.exp2);
+  }
+  // Segment 3 (q > 1000, te > 1e15):
+  //   q = coef3 · (te/knee2)^exp3  ⇒  te = knee2 · (q/coef3)^(1/exp3).
+  return PRESTIGE_V3.knee2 * Math.pow(quills / PRESTIGE_V3.coef3, 1 / PRESTIGE_V3.exp3);
+}
+
 /** The totalEarned the prestige formula runs on: run totalEarned MINUS the seed
  *  capital granted at the start of the run (Dog-Eared + Foreword), clamped ≥ 0.
  *  Anti-exploit: a big Foreword head-start must never mint quills (14 §5.4). */

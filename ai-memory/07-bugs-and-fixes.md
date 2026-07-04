@@ -214,3 +214,80 @@ docker compose run --rm --build test-e2e   → 18 passed (41.3s) — web RECONST
 docker compose run --rm test-unit          → Test Files 24 passed (24) / Tests 399 passed (399)
 docker compose down && docker compose up -d web api   → ambele healthy la final (stack lăsat pornit)
 ```
+
+---
+
+# ADDENDUM — Quality Gate final (Agent 9, v1+v2+v3) · 2026-07-04
+
+Autoritate finală de calitate. 4 revieweri read-only (requirements/code/security/docs) au produs **13 findings** (0 critice, 3 majore, 7 minore, 3 cosmetice). Fiecare a fost verificat ADVERSARIAL pe cod (nu pe încredere). Rezultat: **toate cele 13 au fost REALE** (niciunul respins ca fals); 10 reparate, 3 lăsate ca trade-off documentat/limitare. Suita afectată re-rulată prin Docker după fiecare modificare — verde. Total teste: **399 → 410** (+11 teste noi de regresie).
+
+## A. Findings MAJORE reparate
+
+### M1 — PrestigePanel: bara „Next quill" folosea formula v1 inversă pe totalEarned BRUT (`src/ui/components/PrestigePanel.tsx`)
+- **Real.** Liniile 53–56 calculau `currentFloor = quills²·1e5`, `nextTarget = (quills+1)²·1e5`, `barValue = (totalEarned−floor)/(next−floor)` cu: (1) `quills = prestigePreview(state)`, care INCLUDE Editor's Due (+1) și Divine Royalties → floor/target deplasate chiar și în intervalul v1 (net te=400k + Editor's Due ⇒ quills=3 ⇒ bară blocată la 0%, caption „1.6M" deși mai e 1 quill la 400k); (2) `totalEarned` brut în loc de `prestigeNetTotalEarned` → mismatch cu Foreword activ; (3) formula pătratică e validă doar sub 1e9 — pe segmentele 2–3 bara rămânea PINN-uită la 100% și caption-ul greșit cu ~470× (net te=1e13 ⇒ caption „21.6G" vs. real ~1.01e13). Payout-ul engine era corect; defectul era doar display, dar vizibil și înșelător pe tot endgame-ul.
+- **Fix:** helper nou exportat `totalEarnedForQuills(quills)` în `prestige.ts` — inversa SEGMENTATĂ (oglindește cele 3 segmente: q²·1e5 / knee1·(q/coef2)^6 / knee2·(q/coef3)^12). Panel-ul bazează acum bara pe `barQuills = quillsForTotalEarned(prestigeNetTotalEarned(state))` (FĂRĂ bonusul flat Editor's Due/Royalties, care adaugă quills dar nu mișcă un prag de totalEarned), cu `currentFloor/nextTarget/caption` pe NET te.
+- **Test:** `prestige-v3.test.ts` +2 blocuri (round-trip `quillsForTotalEarned(totalEarnedForQuills(q))===q` pe 17 puncte prin toate cele 3 segmente + monotonie + reproducerea matematicii barei: `barValue ∈ [0,1)` pe tot domeniul, nu negativ/pinn-uit).
+
+### M2 — Store-ul de leaderboard nu avea plafon (memory/disk DoS) (`server/src/app.mjs`, `store.mjs`)
+- **Real.** `store.add()` din ramura CLAIM nu impunea nicio limită pe `entries` Map. Rate-limit-ul per-IP NU mărginește store-ul (fiecare CLAIM de la un IP nou = o intrare PERMANENTĂ 90 zile). Botnet modest de ~100 IP-uri = 1.44M intrări/zi (~375 MB/zi), disc plin + OOM (tot Map-ul în RAM), amplificat de `flush()` (rescrie tot fișierul la 2s) și `findByToken` O(n).
+- **Fix:** opțiune `maxEntries` (default 100 000 ≈ 26 MB, tunabilă prin `LEADERBOARD_MAX_ENTRIES`) verificată ÎNAINTE de `store.add()` pe ramura CLAIM. La atingerea capului rulează întâi un pass GC (eliberează sloturile expirate TTL) și abia apoi respinge cu **503 `leaderboard_full` + Retry-After**. UPDATE-urile cu token (jucători existenți) NU sunt niciodată blocate.
+- **Test:** `leaderboard-api.test.ts` +3 (503 la depășire cu Retry-After; UPDATE-ul token trece cu store plin; pass-ul GC eliberează un slot pentru o intrare stale).
+
+### M3 — Rate-limit pe X-Real-IP devine GLOBAL în spatele unui terminator TLS (`nginx.conf`)
+- **Real.** nginx pune `X-Real-IP $remote_addr`, iar `clientIp` cheie-uiește rate-limit-ul EXCLUSIV pe acest header. În topologia recomandată în README (reverse proxy + TLS peste 8080), `$remote_addr` = IP-ul proxy-ului din față → X-Real-IP identic pentru TOȚI → cei 10 submit/min devin globali (un client blochează comunitatea) SAU limita per-IP e inutilă (nginx-ul din compose nu parsează X-Forwarded-For fără `real_ip`). Direct pe 8080 (fără proxy TLS) e corect și nespoofabil.
+- **Fix (documentare + config gata de activat):** în `nginx.conf`, blocul `location /api/` conține acum liniile `set_real_ip_from <cidr>` + `real_ip_header X-Forwarded-For` comentate cu instrucțiuni, plus un bullet dedicat în README §Hosting care explică cele două opțiuni (front-proxy setează el X-Real-IP la IP-ul real, SAU se decomentează `real_ip` cu CIDR-ul proxy-ului). Bonus: `client_max_body_size 8k;` adăugat în același bloc.
+
+## B. Findings MINORE reparate
+
+### m1 — `sanitizeSparkBuff` tăia la ×2 în loc de ×4 un buff câștigat legitim (`src/engine/save.ts`)
+- **Real.** Clamp-ul era `savedAt + baseDuration × SPARK.netRewardMult` (×2), dar engine-ul scrie `now + duration × sparkRewardMult` unde `sparkRewardMult = NetL2(×2) × The City Dreams of You (Sleeping City unique, ×2) = ×4`. Un jucător deep-endgame cu ≥200 Sleeping City care prinde un quillFrenzy (activeUntil = now+120s) → la reload clamp-ul îl tăia la savedAt+60s (gossip: 240s → 120s). Comentariul „engine-ul nu poate scrie peste savedAt + duration × Net L2" era fals odată existent Sleeping City.
+- **Fix:** constantă `MAX_SPARK_REWARD_MULT = SPARK.netRewardMult × (UNIQUE_BONUSES.sleepingCity.sparkRewardMult ?? 1)` = ×4; clamp-ul folosește acest bound. Buff-urile ostile absurde rămân tăiate la ×4 (nu la infinit).
+- **Test:** `save.test.ts` +2 (fereastra ×4 legitimă supraviețuiește neatinsă; expiry ostil far-future tăiat la savedAt + duration × 4). **Nota:** `save-migration-v2.test.ts` codifica VECHIUL clamp ×2 (asserta bug-ul) — actualizat la ×4 cu explicație.
+
+### m2 — Toast-ul de milestone eticheta greșit badge-ul 200 ca „×2 producția se dublează" când e deținut The Hundredth Telling (`src/ui/App.tsx`)
+- **Real.** `QTY_BADGE_THRESHOLDS` emite un milestone `qty:<gen>:200` (200 e `UNIQUE_THRESHOLD`). Cu relicva The Hundredth Telling (tomes≥100) `uniqueThreshold=150`, deci `qty:150` primește toast-ul unic (corect), dar `qty:200` (threshold 200 ≠ uThreshold 150, ≠ finale 500) cădea în ramura else → „×2! — 200 owned — their production doubles". Dar 200 NU e în `QTY_THRESHOLDS_V3 ([150,300,400,500])`; `qtyMilestoneMultiplier` NU aplică niciun multiplicator la 200. Toast-ul revendica o dublare inexistentă (doar cu relicva deblocată).
+- **Fix:** gardă `doubling = QTY_MILESTONE_THRESHOLDS.includes(t) || (QTY_THRESHOLDS_V3.includes(t) && t !== FINALE)`. Doar pragurile care chiar dublează afișează „×2"; badge-urile ownership-only (200 cu relicva) primesc un mesaj onest fără revendicare de dublare. Engine-ul era deja corect; fix pur de mesagerie.
+
+### m3 — Auto-buy-ul Clockwork Understudy diverge între tick chunked/one-shot când un generator își traversează revealAt mid-window (`src/engine/tick.ts`)
+- **Real.** Probe-ul auto-buy citea `probe.run.totalEarned` ÎNGHEȚAT la valoarea de la începutul tick-ului (doar count-urile de generatoare se actualizau copy-on-write). Un generator al cărui revealAt e traversat de producția din ACELAȘI tick nu devenea auto-buyabil până la tick-ul următor în one-shot, dar în walk chunked (600×100ms) devenea partway — spărgea determinismul „10×100ms ≡ 1×N" pentru CARE generatoare se cumpără (nu doar rata). Expunere practică mică (tick-urile reale sunt ≤100ms; gap-urile >60s merg pe offline fără auto-buy), dar reachable prin chunk-urile de 60s ale `debugFastForward`.
+- **Fix:** probe-ul e reconstruit la fiecare boundary de auto-buy cu `totalEarned: state.run.totalEarned + gained` (producția acumulată în tick), deterministic indiferent de chopping (`gained` la un `t` absolut e identic pentru orice feliere, fiindcă integrarea se sparge la aceleași boundary-uri).
+- **Test:** `v3-systems.test.ts` +1 (60s one-shot ≡ 600×100ms cu un revealAt traversat mid-window → count-uri + lastAutoBuyAt identice).
+
+### m4 — Corpul supradimensionat drenat integral (`server/src/app.mjs` + `nginx.conf`)
+- **Real (I/O waste, nu vuln).** `readBody` oprea bufferarea peste 4096B dar continua să CITEASCĂ tot corpul până la `end` înainte de 422. Un atacator care trece de nginx (default 1MB) putea trimite ~1MB citit server-side înainte de respingere.
+- **Fix:** `client_max_body_size 8k;` în blocul `location /api/` din nginx.conf taie din amonte. Comportamentul app-ului (422 curat în loc de reset TCP) e păstrat DELIBERAT — un `req.destroy()` ar trimite un reset, exact ce codul evita intenționat.
+
+### m5 — `tokenHash` din fișierul persistat nu era validat ca hex la load (`server/src/store.mjs`)
+- **Real (robustețe/igienă, nu vuln — `findByToken` era deja sigur prin garda de lungime).** `load()` accepta orice `tokenHash: string`.
+- **Fix:** `TOKEN_HASH_RE = /^[0-9a-f]{64}$/` verificat la load; o intrare cu tokenHash non-hex face fișierul să fie tratat ca corupt (backup + start empty), consistent cu restul gărzii de load.
+- **Test:** `leaderboard-api.test.ts` +1 (fișier cu tokenHash non-hex → 0 intrări, backup creat, nickname liber).
+
+## C. Findings de documentație reparate
+
+- **d1 — `08-final-validation.md` acoperea DOAR v1** → scris raportul v3 (vezi `08-final-validation.md`, secțiunea nouă „PARTEA II — v2 + v3").
+- **d2 — Comentarii stale în cod:** `config.ts` L5+L832 „Atelier total 92 quills" → „16 upgrade-uri / 470.852 quills (92 = subsetul v2 istoric)"; `save.ts` header „serialization (v2)" → „(v3), lanț v1→v2→v3". `README.md` harta de fișiere: `save.ts` „schema v2, v1→v2" → „schema v3, v1→v2→v3".
+
+## D. Findings REALE lăsate ca trade-off documentat / limitare (NEreparate, cu motiv)
+
+- **[minor req] Identitatea de leaderboard călătorește în save (export/import).** Litera cerinței 09 §4.2 cerea token în cheie localStorage separată; implementarea îl pune în `meta.settings.leaderboard`. E o **abatere CONȘTIENTĂ a arhitectului** (10 §0 A1), justificată (migrare de browser gratuită, un singur mecanism de persistență), MITIGATĂ în UI (`SettingsPanel` avertizează „carries your Hall of Fables seal — don't post it publicly") și în README §Known limitations. Fondul cerinței e îndeplinit (save 100% local; token protejează nickname-ul: 401 pe token greșit). Ridicat doar ca decizie explicită a clientului, nu scăpare. **Fără fix necesar.**
+- **[cosmetic docs] „Upgrades (11)" în README** numără doar upgrade-urile v1; cele 7 re-scalere v3 au secțiune separată corectă („Run re-scalers (v3)") și tip corect (`UpgradeId`). Titlul se referă explicit la cele 11 de bază — nu induce în eroare. **Fără fix.**
+- **[cosmetic docs] Split-ul 380 unit / 19 server = 399** nu se poate reconfirma static pe host (fără Node; doar vitest expandează `it.each`). **Rezolvat de facto:** rularea Docker de mai jos raportează totalul real (acum 410 după cele +11 teste de gate).
+
+## E. Comenzi rulate la gate (Docker, prin volumul de test)
+
+```
+# după fiecare rundă de fix, fișierele afectate, ex.:
+docker run --rm -v "…:/app" -v fableidler_node_modules_test:/app/node_modules -w /app \
+  node:22-bookworm-slim sh -c "npx vitest run <fișiere>"
+
+# validare finală completă:
+npx tsc --noEmit                → TSC_OK (strict, incl. UI + engine + noile exporturi)
+npx vitest run                  → Test Files 24 passed (24) / Tests 410 passed (410)
+npx vite build                  → ✓ built in 2.17s (index-*.js 272 kB / gzip 85 kB)
+GET http://localhost:8080/          → 200
+GET http://localhost:8080/api/health → 200 {"ok":true,...}
+```
+
+**Notă onestă despre stack-ul live:** containerul `api` care rulează pe 8080 folosește imaginea construită ÎNAINTE de fix-urile mele de server (M2/m4/m5). Modificările de `server/src/*` sunt validate prin cele **23 de teste de server** (rulate pe sursa reală, +4 noi la gate), nu prin containerul live; o reconstruire (`docker compose up --build api`) le-ar prelua în producție. Stack-ul live confirmă doar că topologia web+api+nginx e sănătoasă.
+
+## Verdict addendum: 13/13 findings reale · 10 reparate + 3 trade-off documentat · 410/410 teste verzi · tsc + build verzi

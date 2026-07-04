@@ -19,16 +19,22 @@ import { createRateLimiter } from './rate-limit.mjs';
 const MAX_BODY_BYTES = 4096;
 const FLUSH_INTERVAL_MS = 2_000;
 const GC_INTERVAL_MS = 6 * 3_600_000;
+/** Hard ceiling on distinct entries. Per-IP rate limits do NOT bound the store
+ *  (each CLAIM from a fresh IP adds a PERMANENT entry for ttlDays), so a modest
+ *  botnet could otherwise exhaust disk/RAM. New CLAIMs past the cap get 503;
+ *  existing players (token UPDATEs) are never blocked. 100k entries ≈ 26 MB. */
+const DEFAULT_MAX_ENTRIES = 100_000;
 
 /**
  * @param {{
  *   dataFile: string,
  *   now?: () => number,
  *   ttlDays?: number,
+ *   maxEntries?: number,
  *   rateLimits?: { submitPerMin?: number, readPerMin?: number },
  * }} options
  */
-export function createApp({ dataFile, now = Date.now, ttlDays = 90, rateLimits = {} }) {
+export function createApp({ dataFile, now = Date.now, ttlDays = 90, maxEntries = DEFAULT_MAX_ENTRIES, rateLimits = {} }) {
   const submitPerMin = rateLimits.submitPerMin ?? 10;
   const readPerMin = rateLimits.readPerMin ?? 60;
   const store = createStore({ dataFile, now, ttlDays });
@@ -203,6 +209,19 @@ export function createApp({ dataFile, now = Date.now, ttlDays = 90, rateLimits =
     if (store.findByNickname(nicknameLower)) {
       sendJson(res, 409, { error: 'nickname_taken' });
       return;
+    }
+    // Hard cap: refuse NEW identities once the store is full (token UPDATEs above
+    // are unaffected). Run a GC pass first so TTL-expired slots free up before we
+    // reject — a legitimate player should only be turned away when the board is
+    // genuinely at capacity, not merely holding stale entries.
+    if (store.size >= maxEntries) {
+      store.gc();
+      if (store.size >= maxEntries) {
+        sendJson(res, 503, { error: 'leaderboard_full', retryAfterSec: 3600 }, {
+          'Retry-After': '3600',
+        });
+        return;
+      }
     }
     const playerId = crypto.randomUUID();
     const newToken = crypto.randomBytes(16).toString('hex'); // 128-bit, 32 hex chars
