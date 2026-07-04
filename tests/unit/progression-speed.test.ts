@@ -82,6 +82,9 @@ function greedyBuy(state: GameState, now: number): GameState {
 function timeToTarget(goldenQuills: number, tomesPublished: number): number {
   let s = makeState((x) => {
     x.meta.goldenQuills = goldenQuills;
+    // v2 golden rule: the production bonus reads the lifetime anchor
+    // (a non-spender has wallet ≡ lifetime — same setup as a real v1 player).
+    x.meta.stats.lifetimeQuillsEarned = goldenQuills;
     x.meta.tomesPublished = tomesPublished;
   });
   let now = 0;

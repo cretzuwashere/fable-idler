@@ -15,6 +15,10 @@ export function isRevealMilestoneReached(state: GameState, cfg: RevealMilestoneC
       return state.run.totalEarned >= cfg.requirement.amount;
     case 'firstAchievement':
       return state.meta.achievements.length >= 1;
+    // v2 — theGildedDoor / theFirstSpine / wordTravelsFast: meta-based, so they
+    // re-add instantly after every prestige (same mechanism as hallOfDeeds).
+    case 'tomesPublished':
+      return state.meta.tomesPublished >= cfg.requirement.count;
   }
 }
 

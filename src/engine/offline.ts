@@ -1,13 +1,15 @@
-// offline.ts — pure offline progress computation (03 §8).
+// offline.ts — pure offline progress computation (03 §8, extended by v2).
 // gain = perSecondNoBuff(at save time) × min(elapsed, cap) × efficiency
-// efficiency 0.5 / cap 8h; with Lucid Dreaming 0.75 / 12h.
-// The buff NEVER contributes offline; its cooldown keeps running (absolute timestamps).
+// efficiency 0.5 / cap 8h; Lucid Dreaming → 0.75 / 12h;
+// v2: Night Owl Pact adds +12h to the cap (8h→20h / 12h→24h) and The Reader's
+// Letter relic adds +10pp efficiency (0.5→0.6 / 0.75→0.85) — both via selectors.
+// Neither the buff NOR spark buffs ever contribute offline (perSecondNoBuff).
 // Both savedAt and now are explicit parameters — no Date.now() in here.
 
 import { OFFLINE } from './config';
 import { checkAchievements } from './achievements';
 import { checkMilestones } from './milestones';
-import { perSecondNoBuff } from './selectors';
+import { offlineCapMs, offlineEfficiency, perSecondNoBuff } from './selectors';
 import type { GameState } from './types';
 
 export interface OfflineReport {
@@ -27,9 +29,8 @@ export function computeOfflineReport(
   now: number,
 ): OfflineReport {
   const elapsedMs = Math.max(0, now - savedAt);
-  const lucid = state.run.upgrades.lucidDreaming === true;
-  const capMs = lucid ? OFFLINE.capMsUpgraded : OFFLINE.capMsBase;
-  const efficiency = lucid ? OFFLINE.upgradedEfficiency : OFFLINE.baseEfficiency;
+  const capMs = offlineCapMs(state);
+  const efficiency = offlineEfficiency(state);
   const cappedMs = Math.min(elapsedMs, capMs);
   const gained = perSecondNoBuff(state) * (cappedMs / 1000) * efficiency;
   return { elapsedMs, cappedMs, efficiency, gained };

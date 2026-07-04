@@ -1,5 +1,76 @@
 # 05 — Implementation Log
 
+## Agent Engine v2 — Atelier, Spark, Fables, migrare, Myth Engine (2026-07-04)
+
+### Status: COMPLET și VERDE
+- `docker compose run --rm test-unit sh -c "npm install --no-audit --no-fund && npx tsc --noEmit && npx vitest run"` → **19 fișiere / 297 teste trecute** (278 în `tests/unit` — era 156 în v1 → **+122**; celelalte 19 sunt `tests/server` ale agentului de backend, verzi în aceeași rulare). TypeScript strict: zero erori.
+- Toate testele v1 rămân verzi; excepțiile actualizate legitim sunt listate mai jos cu justificare.
+
+### Fișiere
+- **Noi (engine):** `src/engine/atelier.ts`, `src/engine/spark.ts`, `src/engine/fables.ts`.
+- **Modificate (engine):** `config.ts`, `types.ts`, `state.ts`, `save.ts`, `selectors.ts`, `tick.ts`, `prestige.ts`, `buff.ts`, `offline.ts`, `milestones.ts`, `achievements.ts`, `game-loop.ts`, `index.ts`.
+- **Noi (teste):** `tests/unit/atelier.test.ts` (26), `spark.test.ts` (22), `fables.test.ts` (11), `save-migration-v2.test.ts` (19), `selectors-v2.test.ts` (15).
+- **Actualizate (teste v1, doar unde v2 schimbă legitim):** `tick.test.ts` (+describe auto-buy & buff v2), `prestige.test.ts`, `click.test.ts`, `production.test.ts`, `milestones.test.ts`, `achievements.test.ts`, `save.test.ts`, `progression-speed.test.ts` — justificări la „Actualizări legitime" mai jos.
+- **Atinse minim în src/ui (cu motiv):** `src/ui/App.tsx` (guard `event.type === 'achievement'` — extinderea union-ului `GameEvent` rupea narrowing-ul TS; evenimentele v2 sunt ignorate acolo până le preia Agentul UI v2) și `src/ui/icons.ts` (+`mythEngine: '🏛️'` — `Record<GeneratorId,…>` cere cheia nouă). Fără ele `tsc --noEmit` pica; sunt exact liniile pe care Agentul UI v2 le-ar fi scris oricum.
+
+### CONTRACTUL PENTRU UI (acțiuni / selectori / evenimente — semnături exacte)
+
+**Acțiuni noi / extinse (dispatch):**
+```ts
+{ type: 'click'; critRoll?: number }              // UI pasează Math.random() ∈ [0,1); absent = fără crit.
+                                                  // Folosiți ACELAȘI critRoll și pentru feedback-ul vizual:
+                                                  // isCritRoll(state, critRoll) vă spune dacă a critat.
+{ type: 'buyAtelierUpgrade'; id: AtelierUpgradeId }  // critică (save imediat); no-op dacă maxat/fără fonduri
+{ type: 'collectSpark'; kind: SparkRewardKind }      // critică; kind-ul vine din rollSparkKind(Math.random())
+```
+**RNG-ul NU există în engine**: shell-ul (useStraySpark) deține timerul de spawn (interval din `sparkIntervalRange(state)` → `{minMs,maxMs}`, uniform), rostogolește `rollSparkKind(rand01)` și dispecerizează `collectSpark`. Nimic de spark pending nu intră în save.
+
+**Selectori noi exportați din `src/engine` (index):**
+`atelierLevel(state,id)`, `atelierMaxLevel(id)`, `atelierNextCost(state,id) → number|null`, `canBuyAtelierUpgrade(state,id)`, `hasAnyAtelierUpgrade`, `isAtelierComplete`, `apprenticeStartMuses`, `bookmarkedUpgrades`, `hasRelic(state,relicId)`, `unlockedRelics(state) → RelicId[]`, `critChance(state)`, `isCritRoll(state,roll)`, `clickValue(state,now,critRoll?)`, `bookshelfMultiplier`, `inkRemembersMultiplier`, `isSparkBuffActive(state,kind,now)`, `offlineCapMs`, `offlineEfficiency`, `sparkIntervalRange`, `isGeneratorVisibleInShop(state,id)` (mythEngine NU se randează fără blueprint — folosiți-l în GeneratorList în locul lui `isGeneratorRevealed`), `uniqueFableCount(fables)`, `generateFadedTitle(n)`, `nextManualBuffDurationMs`, `buffCooldownMs`, plus funcțiile spark: `rollSparkKind`, `sparkRewardSummary(state,kind,now)`, `sparkWeightTotal`, `SPARK_KINDS`.
+Config nou exportat: `ATELIER_UPGRADES` (cu `name/flavor/costs/levelDescriptions`), `RELICS` (cu `tomes/name/description/flavor`), `SPARK`, `BOOKSHELF`, `GILDED_QUILLS_THRESHOLD`, tabelele `FABLE_*`, `RELIC_INDEX`, `ATELIER_UPGRADE_INDEX` etc.
+
+**Evenimente noi în `subscribeToEvents` (consumabile, o dată per apariție):**
+```ts
+{ type: 'atelierPurchase'; id: AtelierUpgradeId; level: number }   // level = nivelul tocmai atins
+{ type: 'sparkCollected'; kind: SparkRewardKind; reward: SparkRewardSummary }
+   // SparkRewardSummary: { kind; inspiration; quills; fragments; boundQuill; buff: SparkBuffState|null }
+   //  → toast-ul cu cifre concrete vine direct din reward (ex. inkBurst: reward.inspiration)
+{ type: 'fablePenned'; fable: Fable }        // la fiecare publish (diff pe meta.fables)
+{ type: 'relicUnlocked'; id: RelicId }       // la traversarea pragului de tomes
+```
+`importSave` rămâne SILENȚIOS (nicio inundație de toast-uri la re-hidratare). Starea spark-buff pentru pill-ul UI: `state.run.sparkBuff` (`{kind, activeUntil}|null`) + `isSparkBuffActive`.
+
+### Decizii + abateri documentate (față de 09/10/11)
+1. **Cifrele 11 primează peste 09** (conform sarcinii): inkBurst **45×effectiveProd** (nu 900), Thunderous Applause **20s** (nu 60), cost total Atelier **92** (nu „96"), crit pe ÎNTREGUL click (RUN F).
+2. **Numele evenimentelor**: 10 §3.2 propunea `relic/fable/quillFromFragments`; orchestratorul a cerut `atelierPurchase/sparkCollected/fablePenned/relicUnlocked` — am implementat numele orchestratorului; `quillFromFragments` e acoperit de `sparkCollected.reward.boundQuill` (un singur eveniment per catch, nu două).
+3. **Auto-buy determinist**: Self-Writing Contract se evaluează DOAR la secunde epoch-aliniate absolute (`floor(t/1000)`) în interiorul `tick`, cu integrare piecewise (granițe: expirare buff, expirare gossip, secunde întregi). Rezultatul e independent de felierea în tick-uri — testat 10×100ms ≡ 1×1000ms cu auto-buy activ. `run.lastAutoBuyAt` impune max 1/sec peste granițele de tick.
+4. **Thunderous Applause = 20 × producția FĂRĂ Moment of Inspiration, dar CU gossip activ** (11: „snapshot pre-activare, fără dublă numărare"; 10 propunea `perSecondNoBuff` — includerea gossip-ului e coerentă cu regula inkBurst „buff-urile active contează"). Nu se declanșează la buff-ul gratuit din Time Slip.
+5. **Time Slip**: `cooldownUntil = now` + buff gratuit cu durata SIMPLĂ (burstOfGenius da, Standing Ovation NU — nu consumă „prima activare"; `buffActivationsThisRun` și `stats.buffActivations` neatinse; fără Applause; fără dublare Net L2).
+6. **`allGenerators` (Well-Rounded Library) exclude mythEngine** (`WELL_ROUNDED_GENERATOR_IDS` în config) — altfel un jucător fără Blueprint nu l-ar mai putea obține (regresie v1). 09/10 nu specificau; clarificare proprie, testată.
+7. **Relicele la construcția rundei se evaluează pe NOUL `tomesPublished`** (publicarea tomului #3 dă Dog-Eared Page pentru runda pe care o deschide). Sanitizarea buff-ului acceptă acum ferestre legitime de 45s (22.5 × 2 Standing Ovation) — testul v1 de clamp actualizat corespunzător.
+8. **`startedAt = 0` e sentinel global** („durată necunoscută") — inclusiv pentru rundele create de un publish la `now = 0` (doar în teste posibil); real-world e epoch ms, deci irelevant.
+9. **Migrare defensivă**: `MIGRATIONS[1]` nu aruncă pe payload-uri ostile (doar completează câmpurile noi; sanitizerii v2 validează după) și plafonează fabulele faded generate la **1000** (un `tomesPublished: 1e15` ostil nu poate bloca load-ul). `sanitizeFables` păstrează max **5000** intrări, dedupe pe `n`, sortare pe `n`, titluri ≤120 caractere.
+10. **Invariantul de aur în sanitizare**: `lifetimeQuillsEarned = max(lifetimeQuillsEarned, goldenQuills)` (reparare prin RIDICARE, ca `totalEarned≥inspiration` din v1). `storyFragments` clamp 0–4; nivele atelier clamp la max; `startedAt`/`lastAutoBuyAt` clamp ≤ savedAt (anti fake-fastest-publish); `sparkBuff.activeUntil` clamp ≤ savedAt + durata max legitimă per kind × Net L2; identitate leaderboard invalidă = DROP silențios, nu respinge save-ul.
+11. **`perSecondNoBuff` NU include spark-buff-urile** (baza offline-ului — anti-abuz 09 §2.3); `perSecond(state, now)` include și Moment și Gossip (valoarea afișată). `clickPower` include frenzy ×7 doar pe bază; critul e separat, în `clickValue` (reducer + UI folosesc aceeași funcție).
+12. **`buffDurationMs(state)` păstrează semantica v1** (15/22.5s); noul `nextManualBuffDurationMs(state)` include Standing Ovation — UI să-l folosească pentru preview-ul duratei.
+13. **`SaveDataV1` rămâne exportat** doar ca formă legacy documentară (`run/meta: unknown`); `sanitizeSaveData` întoarce `SaveDataV2` și acceptă DOAR `version === 2` după lanț.
+
+### Actualizări legitime la testele v1 (toate cerute de contractele v2)
+- `production/click/prestige/progression-speed`: bonusul de quills citește `stats.lifetimeQuillsEarned` (REGULA DE AUR, 09 §1.1) — testele care setau doar `meta.goldenQuills` setează acum ancora lifetime (echivalent cu un jucător v1 care nu a cheltuit).
+- `prestige.test.ts`: run-ul nou are `startedAt=now` (→ `createInitialRunState(777)`); stats-ul crește cu `lifetimeQuillsEarned` la publish; milestones post-publish includ `theGildedDoor/theFirstSpine/wordTravelsFast` (mecanism identic `hallOfDeeds`).
+- `milestones.test.ts`: lista re-earned post-prestige include cele 3 milestones pe tomes.
+- `save.test.ts`: clamp-ul buff-ului acceptă 45s (Ovation×Burst); stub-ul de migrare v0 înlănțuie acum prin `MIGRATIONS[1]` real (dovada lanțului multi-pas).
+- `tick.test.ts`: stările „steady" pre-deblochează `patronOfTheArts` când atelierul e setat (altfel pragul de achievement mută ×1.03→×1.04 în momente diferite în cele două căi de integrare — exact clasa de probleme pe care testul v1 o evita deja prin pre-unlock).
+
+### De știut pentru Agent UI v2 / E2E v2
+- `forceSpark(kind?)` în test-hook: `kind` absent → `rollSparkKind(Math.random())` în shell; dispatch `{type:'collectSpark', kind}`. Engine-ul NU validează gate-ul de milestone la collect (shell-ul îl deține) — hook-ul E2E poate forța oricând.
+- Chip-ul `golden-quills` din header afișează acum PORTOFELUL (poate scădea la cumpărături); tooltip-ul cu lifetime vine din `meta.stats.lifetimeQuillsEarned` (12 §2.1).
+- `GeneratorList` trebuie să treacă pe `isGeneratorVisibleInShop` (mythEngine fără teaser „? ? ?").
+- Achievement-ul `nameInLights` se aprinde automat când `setSettings` scrie `settings.leaderboard.token` (mecanismul existent de check după dispatch).
+- Ordinea multiplicatorilor implementată e EXACT 11 §7 — orice cifră nouă intră în config, nu în selectors.
+
+---
+
 ## Agent 5 — Engine (core gameplay, 2026-07-03)
 
 ### Status: COMPLET și VERDE
@@ -252,3 +323,68 @@ Toate cifrele din README au fost luate din `src/engine/config.ts` (sursa de adev
 ### De știut pentru Agent 8/9
 - README-ul documentează `docker compose run --rm --build test-e2e` ca fiind comanda canonică E2E — dacă Agent 8 schimbă fluxul, actualizați secțiunea „How to test".
 - `ai-memory/07-bugs-and-fixes.md` NU a fost creat de Agent 7 — nu a existat niciun bug Docker demonstrabil de documentat.
+
+---
+
+## Agent Backend v2 — Hall of Fables API (server zero-deps + integrare Docker, 2026-07-04)
+
+### Status: COMPLET și VERDE
+- **19 teste server noi** (`tests/server/leaderboard-api.test.ts`) — verzi prin Docker (volum separat `fable_nm_backend`, NU `test-unit` — era folosit în paralel).
+- **Suita completă: 175/175** (156 v1 + 19 server) + `npx tsc --noEmit` verde — niciun test v1 atins.
+- **Serviciul REAL validat prin compose**: `docker compose build api` → `up -d api` → healthy în <8s; `GET /api/health` → `{"ok":true,"entries":0,"uptimeSec":14}`; POST de probă prin rețeaua compose → 200 cu playerId/token/ranks; flush confirmat pe volumul `/data` (scriere non-root OK ⇒ chown-ul din Dockerfile funcționează); restart → `entries:1` (persistență reală); `compose stop api` → **Exited (0)** (SIGTERM handler curat).
+
+### Fișiere create
+| Fișier | Rol |
+|---|---|
+| `server/src/app.mjs` | `createApp({dataFile, now?, ttlDays?, rateLimits?})` → `node:http.Server` NEpornit; toate rutele + handler-ele; flush debounce 2s + GC 6h (`setInterval` unref, curățate la `close`); `server.flushNow()` atașat pentru teste/SIGTERM |
+| `server/src/store.mjs` | Map în memorie + snapshot JSON atomic (tmp+rename); fișier corupt la boot → redenumit `<dataFile>.corrupt-<ts>` + pornire goală (warn, nu crash); GC pe `updatedAt < now − ttlDays`; `sorted(by)`/`rankOf` cu tie-break determinist |
+| `server/src/validate.mjs` | nickname `^[A-Za-z0-9 _-]{3,20}$` + trim-egal + ≥1 alfanumeric; scoruri finite ≥0 ≤1e300; `fastestPublishMs` ≥1 sau `null`; floor pe tomes/quills; întoarce primul câmp vinovat |
+| `server/src/rate-limit.mjs` | fereastră fixă 60s per cheie, cap 10k chei cu evicție lazy |
+| `server/src/server.mjs` | entrypoint: env (`PORT`, `LEADERBOARD_DATA_FILE`, `LEADERBOARD_TTL_DAYS`, `RATE_SUBMIT_PER_MIN`/`RATE_READ_PER_MIN`) → `createApp().listen`; SIGTERM/SIGINT → flush + close + exit 0 (failsafe 3s) |
+| `server/src/app.d.mts` | declarații de mână pentru teste: `createApp`, `CreateAppOptions`, `LeaderboardServer` (structural, FĂRĂ @types/node), `ScoreSet`, `LeaderboardEntry`, `LeaderboardMetric` |
+| `server/Dockerfile` | `node:22-alpine`, COPY src, **`mkdir -p /data && chown node:node /data` ÎNAINTE de `USER node`** (capcana de ownership din 10 §2.2), EXPOSE 3000, HEALTHCHECK cu `node -e "fetch(...)"` |
+| `tests/server/leaderboard-api.test.ts` | 19 teste HTTP REALE: `createApp` pe `listen(0)` + `fetch` nativ — vezi acoperirea mai jos |
+
+### Fișiere v1 modificate (exact cele permise)
+- `docker-compose.yml`: + serviciul `api` (build `./server`, FĂRĂ port pe host, healthcheck node fetch, volum `leaderboard_data:/data`), + `depends_on: [api]` la `dev`, + `api: condition: service_healthy` la `test-e2e`, + volumul `leaderboard_data`. `web` NU are depends_on (rulează singur).
+- `nginx.conf`: blocul `location /api/` cu `resolver 127.0.0.11 valid=10s ipv6=off` + variabila `$api_upstream` (rezolvare LAZY ⇒ web pornește fără api), `X-Real-IP`, `Host`, timeouts 2/5/5s. Inserat ÎNAINTE de `location /assets/`.
+- `vite.config.ts`: DOAR `server.proxy['/api'] → http://api:3000` (cu fallback `API_PROXY_TARGET`) și `test.include += 'tests/server/**/*.test.ts'`.
+- `package.json`, `tsconfig.json`, `Dockerfile` (web), `src/**` — NEATINSE.
+
+### API-ul implementat (contractul 10 §1.4, byte-cu-byte)
+- `POST /api/leaderboard/submit` — un singur endpoint: fără `token` = claim (200 cu `{playerId, token 32-hex — apare O SINGURĂ DATĂ, nickname, ranks}`), cu `token` = update/rename (200 FĂRĂ token în răspuns). Ordinea evaluării: 422 `{error:'invalid_payload', field}` (JSON stricat/body >4KB → `field:'body'`) → 401 `{error:'invalid_token'}` (intrarea NEmodificată) → 409 `{error:'nickname_taken'}` (claim pe nume luat SAU rename pe numele ALTEI intrări; rename pe alt casing al propriului nume = permis) → succes cu **best-keeping** (max pe cele 3 monotone, min-ignorând-null pe fastest; `null` NU șterge un fastest existent).
+- `GET /api/leaderboard/top?by=&limit=&playerId=` — `by` default `lifetimeInspiration` (necunoscut → 422 field `by`); `limit` 1–100 default 20; sort DESC pe 3 / ASC pe `fastestPublishMs` cu null EXCLUS (și din `total`); tie-break `updatedAt` mai vechi → `playerId` lexicografic; `me` = `{rank, value}` sau `null`, prezent DOAR când s-a cerut `playerId` (altfel cheia lipsește din JSON).
+- `GET /api/health` → `{ok, entries, uptimeSec}`, fără rate limit.
+- Transversal: 404 `not_found` / 405 `method_not_allowed` / 429 `{error:'rate_limited', retryAfterSec}` + header `Retry-After` / 500 `{error:'internal'}` (stack doar în stdout). Toate răspunsurile `application/json` + `Cache-Control: no-store`.
+- Securitate: token `randomBytes(16).hex`, pe disc DOAR SHA-256; lookup prin iterare completă + `timingSafeEqual` (fără early-return); rate limit per IP din `X-Real-IP` (fallback `socket.remoteAddress`): 10 submit/min, 60 read/min.
+
+### Acoperirea celor 19 teste (HTTP real, port efemer, `now` injectat)
+claim (shape complet + token 32-hex + ranks cu fastest null) · 409 case-insensitive · floor tomes/quills · update fără token în răspuns · 401 + intrare nemodificată · rename liber/ocupat/recasing propriu · 10 clase de 422 cu `field` exact · NaN raw JSON + body >4KB → 422 `body` · best-keeping (3 metrici + fastest mai mare + null) · sortări toate 4 metricile + excludere null + `total` · tie-break updatedAt și playerId (același `now` ⇒ egalitate reală) · `me` prezent/null/omis · limit + 422 pe by/limit · 429 la a 11-a trimitere cu `Retry-After` == `retryAfterSec` + recuperare după 61s (clock injectat) · health nelimitat + uptime exact · 404/405 · round-trip persistență (flushNow → app nou pe același fișier → date + token + rezervarea nickname-ului supraviețuiesc) · flush implicit la `close` · fișier corupt → backup `.corrupt-<ts>` cu conținutul original + boot gol funcțional.
+
+### Cum se rulează testele server
+```bash
+# izolat (fără să atingi test-unit):
+docker run --rm -v "C:\Projects\Games\Fable Idler:/app" -v fable_nm_backend:/app/node_modules -w /app node:22-bookworm-slim sh -c "npm install --no-audit --no-fund && npx vitest run tests/server"
+# sau în fluxul normal: docker compose run --rm test-unit   (npm run test include acum tests/server prin vite.config test.include)
+```
+Testele NU pornesc Docker — `createApp().listen(0)` în proces, `fetch` nativ Node 22, `dataFile` în `mkdtemp`, `now` injectat pentru rate-limit/tie-break/uptime.
+
+### Abateri de la contract (documentate, cu motiv)
+1. **`tsconfig.json` NU a primit `tests/server` în include** (10 §4.2 o cerea) — decizie explicită a orchestratorului: vitest transpilează singur, iar testul e scris fără tipuri de node (importurile `node:fs/os/path` au `@ts-ignore`, tipurile vin din `app.d.mts`, fetch din lib DOM deja prezent). Consecință: `tsc --noEmit` nu type-checkează testul server — acceptat.
+2. **`server.flushNow()`** — metodă suplimentară pe serverul întors (nu e în contractul §1.4, e aditivă): flush determinist pentru teste + calea SIGTERM. Declarată în `app.d.mts`.
+3. **Numele backup-ului la corupt**: `<dataFile>.corrupt-<timestamp>` (contractul nu fixa numele; timestamp-ul evită suprascrierea la coruperi repetate).
+4. `WORKDIR /srv/leaderboard` în Dockerfile (nu era specificat; orice cale în afara `/data` e echivalentă).
+
+### Ce trebuie să știe Agentul UI v2
+- Baza API: **`/api`** same-origin (nginx în producție, Vite proxy în dev — ambele pasează URI-ul neschimbat). Fără CORS — nu încercați cross-origin.
+- Claim = POST fără `token`; răspunsul conține `token` O SINGURĂ DATĂ — salvați-l imediat în `meta.settings.leaderboard` prin `setSettings`. Update = același POST cu `token`; răspunsul NU mai conține token.
+- 409 la claim/rename → cereți alt nickname; 401 → identitate invalidă (tratați silențios, starea rămâne); 422 → bug de client (validați nickname-ul local cu ACEEAȘI regulă `^[A-Za-z0-9 _-]{3,20}$` + trim + ≥1 alfanumeric înainte de trimitere); 429 → respectați `Retry-After` (nu retry agresiv).
+- `ranks` din răspunsul submit e deja calculat — puteți afișa rank-ul fără un GET suplimentar. `me` din `/top` apare DOAR dacă trimiteți `playerId`.
+- Trimiteți TOATE cele 4 scoruri la fiecare submit (toate obligatorii); `fastestPublishMs: null` până la primul publish cronometrat. Serverul păstrează BEST — puteți retrimite orice, nimic nu regresează.
+- Scorurile mai mici NU produc eroare (best-keeping idempotent) — nu trebuie logică de „doar dacă a crescut" pe client (doar throttle).
+
+### Ce trebuie să știe Agentul E2E
+- `test-e2e` are acum `depends_on: api: service_healthy` — stack-ul complet pornește automat; scenariul 10a (flux real) nu are nevoie de mock.
+- Serviciul `api` NU publică port pe host; din containerul Playwright: prin web (`http://web:80/api/health`) sau direct `http://api:3000`.
+- Volumul `leaderboard_data` PERSISTĂ între rulări (`down` fără `-v` îl păstrează) — nickname-urile din rulări anterioare rămân rezervate: folosiți nickname-uri unice per rulare (ex. sufix timestamp) sau acceptați 409. L-am lăsat GOL după validare.
+- Degradare (10b): `page.route('**/api/**', abort)` pe client; serverul răspunde în <2s prin nginx (timeouts 2/5/5s) când api e oprit → 502 de la nginx, clientul intră în „unreachable".

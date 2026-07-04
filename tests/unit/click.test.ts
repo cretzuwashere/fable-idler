@@ -27,12 +27,17 @@ describe('clickPower', () => {
   });
 
   it('Quill Resonance applies the quill bonus to the click', () => {
+    // v2 golden rule: resonance reads the SAME lifetimeQuillsEarned anchor.
     const withRes = makeState((x) => {
       x.meta.goldenQuills = 2;
+      x.meta.stats.lifetimeQuillsEarned = 2;
       x.meta.quillResonance = true;
     });
     expect(clickPower(withRes, 0)).toBeCloseTo(1.6, 12); // 1 · (1 + 0.30·2)
-    const withoutRes = makeState((x) => void (x.meta.goldenQuills = 2));
+    const withoutRes = makeState((x) => {
+      x.meta.goldenQuills = 2;
+      x.meta.stats.lifetimeQuillsEarned = 2;
+    });
     expect(clickPower(withoutRes, 0)).toBe(1); // quills alone do NOT boost the click
   });
 
@@ -60,11 +65,30 @@ describe('clickPower', () => {
       x.run.upgrades.inkEcho = true;
       x.meta.quillResonance = true;
       x.meta.goldenQuills = 1;
+      x.meta.stats.lifetimeQuillsEarned = 1; // v2 golden rule anchor
       x.run.generators.inkSprite = 10;
       x.run.buff.activeUntil = 1_000;
     });
     // base = 1·2·1.3·5 = 13; prod = 10·1.3(quills)·2(buff) = 26 → echo 0.26 → 13.26
     expect(clickPower(s, 0)).toBeCloseTo(13.26, 9);
+  });
+});
+
+describe('v2 click action — injected critRoll', () => {
+  it('a click dispatched with critRoll 0 crits ×10 with Stroke of Genius owned', () => {
+    const s = makeState((x) => {
+      x.run.upgrades.sharpenedNib = true;
+      x.meta.atelier = { strokeOfGenius: 1 };
+    });
+    const after = applyAction(s, { type: 'click', critRoll: 0 }, 0);
+    expect(after.run.inspiration).toBe(20); // 2 × 10
+    expect(after.meta.stats.totalClicks).toBe(1);
+  });
+
+  it('critRoll 0.999 (or no roll at all) never crits — v1 dispatches stay valid', () => {
+    const s = makeState((x) => void (x.meta.atelier = { strokeOfGenius: 2 }));
+    expect(applyAction(s, { type: 'click', critRoll: 0.999 }, 0).run.inspiration).toBe(1);
+    expect(applyAction(s, { type: 'click' }, 0).run.inspiration).toBe(1);
   });
 });
 

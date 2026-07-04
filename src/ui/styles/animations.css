@@ -241,11 +241,211 @@
   animation: emberPulse 1s ease-in-out infinite alternate;
 }
 
+/* ================================================================== */
+/* v2 animations #16–#23 (ai-memory/12-v2-ui-ux.md §7)                  */
+/* ================================================================== */
+
+/* #16 sparkFloat — Stray Spark flight: 10.000ms linear along the lane set
+   by JS via --spark-x0/y0/x1/y1 at spawn; fade-out in the last 800ms.
+   The bob (±6px, 1.6s ease-in-out infinite alternate) runs on the INNER
+   button so the two transforms never fight. */
+@keyframes sparkFloat {
+  0% {
+    transform: translate(var(--spark-x0), var(--spark-y0));
+    opacity: 0;
+  }
+  4% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+    /* 92% de 10s = ultimele 800ms sunt fade-out */
+  }
+  100% {
+    transform: translate(var(--spark-x1), var(--spark-y1));
+    opacity: 0;
+  }
+}
+.anim-spark-float {
+  animation: sparkFloat 10000ms linear forwards;
+}
+@keyframes sparkBob {
+  from {
+    transform: translateY(-6px);
+  }
+  to {
+    transform: translateY(6px);
+  }
+}
+.anim-spark-bob {
+  animation: sparkBob 1.6s ease-in-out infinite alternate;
+}
+/* reduced-motion static slot: plain fade in/out (the slot is set by JS) */
+.anim-spark-fade {
+  animation: fadeOnly 250ms ease-out;
+}
+
+/* #17 sparkBurst — 450ms --ease-pop forwards: 8 radial gold particles (40px)
+   + a ring dilating 0→56px, opacity→0. Directions via --dx/--dy per particle. */
+@keyframes sparkBurstRing {
+  0% {
+    width: 6px;
+    height: 6px;
+    opacity: 0.9;
+  }
+  100% {
+    width: 56px;
+    height: 56px;
+    opacity: 0;
+  }
+}
+.anim-spark-burst-ring {
+  animation: sparkBurstRing 450ms var(--ease-pop) forwards;
+}
+@keyframes sparkBurstParticle {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0.55);
+    opacity: 0;
+  }
+}
+.anim-spark-burst-particle {
+  animation: sparkBurstParticle 450ms var(--ease-pop) forwards;
+}
+/* reduced motion: a simple 200ms fade, no particles */
+@keyframes sparkBurstFade {
+  from {
+    opacity: 0.8;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.anim-spark-burst-fade {
+  animation: sparkBurstFade 200ms ease-out forwards;
+}
+
+/* #18 relicUnlock — 900ms --ease-out: silhouette→color crossfade + gold ring
+   flash (unlockGlow ×1.5) + scale 0.92→1 */
+@keyframes relicUnlock {
+  0% {
+    transform: scale(0.92);
+    filter: grayscale(1) brightness(0.5);
+    box-shadow: 0 0 42px rgba(232, 181, 77, 0.9);
+  }
+  55% {
+    filter: none;
+  }
+  100% {
+    transform: scale(1);
+    filter: none;
+    box-shadow: none;
+  }
+}
+.anim-relic-unlock {
+  animation: relicUnlock 900ms var(--ease-out);
+}
+
+/* #19 bookSlideIn — 500ms --ease-pop: translateY(-14px) rotate(-4deg) → 0/0 */
+@keyframes bookSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) rotate(-4deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+}
+.anim-book-slide-in {
+  animation: bookSlideIn 500ms var(--ease-pop);
+}
+
+/* #20 leaderboardRowHighlight — 1200ms ease-in-out, once: the own-row
+   background pulses --quill-tint → ×2 → back (the static highlight stays). */
+@keyframes leaderboardRowHighlight {
+  0%,
+  100% {
+    background-color: var(--quill-tint);
+  }
+  50% {
+    background-color: var(--quill-tint-strong);
+  }
+}
+.anim-leaderboard-row-highlight {
+  animation: leaderboardRowHighlight 1200ms ease-in-out 1;
+}
+
+/* #21 critFlash — 300ms ease-out radial gold-bright flash on the ClickButton
+   border (the crit FloatingNumber + caption are separate nodes). */
+@keyframes critFlash {
+  0% {
+    box-shadow: 0 0 0 3px var(--gold-bright), 0 0 34px rgba(255, 217, 122, 0.8);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+.anim-crit-flash {
+  animation: critFlash 300ms ease-out;
+}
+/* caption "A stroke of genius!" — 800ms fade under the button */
+@keyframes critCaption {
+  0% {
+    opacity: 1;
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.anim-crit-caption {
+  animation: critCaption 800ms ease-out forwards;
+}
+
+/* #22 skeletonPulse — 1.2s ease-in-out infinite, opacity 0.4↔0.7 */
+@keyframes skeletonPulse {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 0.7;
+  }
+}
+.anim-skeleton-pulse {
+  animation: skeletonPulse 1.2s ease-in-out infinite alternate;
+}
+
+/* #23 walletSpend — 250ms --ease-out on the 🪶 chips at spending */
+@keyframes walletSpend {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(0.94);
+    box-shadow: var(--glow-quill);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: none;
+  }
+}
+.anim-wallet-spend {
+  animation: walletSpend 250ms var(--ease-out);
+}
+
 /* ------------------------------------------------------------------ */
 /* Reduced motion (04 §5): media query AND the manual Settings toggle   */
 /* (the .reduce-motion class on the app root mirrors these rules).      */
 /* #1 #3 #4 #10 #15 fully disabled; #11 becomes a plain 300ms fade;     */
 /* the rest keep only their opacity fade (no translate/scale).          */
+/* v2: #16 no flight (static corner slot, JS side) · #17 plain fade ·   */
+/* #18/#19 fadeOnly 250ms · #20/#21/#23 off · #22 static at 0.5.        */
 /* ------------------------------------------------------------------ */
 
 @keyframes fadeOnly {
@@ -289,6 +489,29 @@
   .anim-prestige-overlay.is-clearing {
     transition: opacity 300ms ease-out;
   }
+  /* v2 #16–#23 */
+  .anim-spark-float,
+  .anim-spark-bob,
+  .anim-leaderboard-row-highlight,
+  .anim-crit-flash,
+  .anim-wallet-spend {
+    animation: none;
+  }
+  .anim-spark-burst-ring,
+  .anim-spark-burst-particle {
+    animation: sparkBurstFade 200ms ease-out forwards;
+  }
+  .anim-relic-unlock,
+  .anim-book-slide-in {
+    animation: fadeOnly 250ms ease-out;
+  }
+  .anim-crit-caption {
+    animation: critCaption 500ms step-end forwards;
+  }
+  .anim-skeleton-pulse {
+    animation: none;
+    opacity: 0.5;
+  }
 }
 
 .reduce-motion .anim-float-up,
@@ -321,4 +544,27 @@
 .reduce-motion .anim-prestige-overlay,
 .reduce-motion .anim-prestige-overlay.is-clearing {
   transition: opacity 300ms ease-out;
+}
+/* v2 #16–#23 */
+.reduce-motion .anim-spark-float,
+.reduce-motion .anim-spark-bob,
+.reduce-motion .anim-leaderboard-row-highlight,
+.reduce-motion .anim-crit-flash,
+.reduce-motion .anim-wallet-spend {
+  animation: none;
+}
+.reduce-motion .anim-spark-burst-ring,
+.reduce-motion .anim-spark-burst-particle {
+  animation: sparkBurstFade 200ms ease-out forwards;
+}
+.reduce-motion .anim-relic-unlock,
+.reduce-motion .anim-book-slide-in {
+  animation: fadeOnly 250ms ease-out;
+}
+.reduce-motion .anim-crit-caption {
+  animation: critCaption 500ms step-end forwards;
+}
+.reduce-motion .anim-skeleton-pulse {
+  animation: none;
+  opacity: 0.5;
 }

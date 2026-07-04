@@ -276,3 +276,5 @@ export const BOOKSHELF = { bonusPerUniqueFable: 0.02, countedCap: 25 } as const;
 - **Fereastra primului prestige (RUN H):** 20m45s–22m41s cu sparks (vs 24m23s fără) — rămâne în 20–40 min; t(1000) neatins de v2.
 - **Lanț meta 12 tomuri (RUN G):** curba de acumulare, affordability (primul upgrade la primul publish), Full Patronage la tomul 12 greedy, Speed Reader la tomurile 3–4.
 - **Aritmetică:** total Atelier 92 (eroarea „96" din 09 semnalată); EV 0.036 🪶/spark → 0.54/h bază, 2.07/h Net L2; Myth Engine payback 6.667s pe curba v1; podea inkBurst nefarmabilă la producție 0.
+
+> **Notă v3 (2026-07-04):** extensia de longevitate (design în `13-longevity-design.md`) va fi calibrată în `14-longevity-economy.md` — inclusiv frânarea formulei de quills STRICT peste te=1e9 (sub genunchi rămâne EXACT formula de aici); cifrele v2 din acest document rămân neschimbate și valide.

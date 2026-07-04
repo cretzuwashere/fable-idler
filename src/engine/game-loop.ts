@@ -4,10 +4,14 @@
 //   with the tab open) are routed through the SAME offline path as bootstrap
 //   (02 §2.2 — one code path for "lost time") and surfaced as an 'offline' event.
 // - autosave every AUTOSAVE_TICKS (~10s) + immediately after critical actions
+//   (v2 adds buyAtelierUpgrade + collectSpark — quills/fragments never lost).
 // - deps.now / deps.storage injectable → fully testable without DOM or timers.
-// Also emits consumable unlock events (milestones/achievements) for UI toasts.
+// Emits consumable events for UI toasts: milestones/achievements (v1) plus
+// v2: atelierPurchase, sparkCollected, fablePenned, relicUnlocked.
+// importSave stays SILENT (re-hydration, not fresh unlocks).
 
-import { AUTOSAVE_TICKS, MAX_TICK_DT_MS, TICK_MS } from './config';
+import { AUTOSAVE_TICKS, MAX_TICK_DT_MS, RELICS, TICK_MS } from './config';
+import { atelierLevel, buyAtelierUpgrade } from './atelier';
 import { checkAchievements } from './achievements';
 import { activateBuff } from './buff';
 import { buyGenerator } from './generators';
@@ -17,11 +21,21 @@ import type { OfflineReport } from './offline';
 import { publishTheTome } from './prestige';
 import { importSaveString, loadSave, persistSave, SAVE_KEY } from './save';
 import type { StorageLike } from './save';
-import { clickPower } from './selectors';
+import { clickValue } from './selectors';
+import { applySparkReward, sparkRewardSummary } from './spark';
+import type { SparkRewardSummary } from './spark';
 import { createInitialState } from './state';
 import { tick } from './tick';
 import { buyUpgrade } from './upgrades';
-import type { Action, AchievementId, GameState } from './types';
+import type {
+  Action,
+  AchievementId,
+  AtelierUpgradeId,
+  Fable,
+  GameState,
+  RelicId,
+  SparkRewardKind,
+} from './types';
 
 export type { StorageLike };
 
@@ -29,7 +43,16 @@ export type GameEvent =
   | { type: 'milestone'; id: string }
   | { type: 'achievement'; id: AchievementId }
   /** A foreground time gap > 60s was credited through the offline path. */
-  | { type: 'offline'; report: OfflineReport };
+  | { type: 'offline'; report: OfflineReport }
+  // --- v2 events (consumable, once per occurrence — for toasts) ---
+  /** A successful Atelier purchase; `level` is the level just reached. */
+  | { type: 'atelierPurchase'; id: AtelierUpgradeId; level: number }
+  /** A Stray Spark was caught; `reward` carries the resolved magnitudes. */
+  | { type: 'sparkCollected'; kind: SparkRewardKind; reward: SparkRewardSummary }
+  /** A new fable landed on the Bookshelf (fired on publish). */
+  | { type: 'fablePenned'; fable: Fable }
+  /** A relic threshold was crossed (derived from tomesPublished). */
+  | { type: 'relicUnlocked'; id: RelicId };
 
 export interface GameStore {
   /** Referentially stable snapshot between notifications. */
@@ -74,7 +97,9 @@ export function applyAction(state: GameState, action: Action, now: number): Game
   let next: GameState;
   switch (action.type) {
     case 'click': {
-      const value = clickPower(state, now);
+      // critRoll comes from the shell (Math.random()); the reducer itself is
+      // RNG-free. Invalid/absent roll = no crit (v1 dispatches stay valid).
+      const value = clickValue(state, now, action.critRoll);
       next = {
         ...state,
         run: {
@@ -98,6 +123,12 @@ export function applyAction(state: GameState, action: Action, now: number): Game
       break;
     case 'buyUpgrade':
       next = buyUpgrade(state, action.id);
+      break;
+    case 'buyAtelierUpgrade':
+      next = buyAtelierUpgrade(state, action.id);
+      break;
+    case 'collectSpark':
+      next = applySparkReward(state, action.kind, now);
       break;
     case 'activateBuff':
       next = activateBuff(state, now);
@@ -172,11 +203,13 @@ export function applyAction(state: GameState, action: Action, now: number): Game
   return next;
 }
 
-/** Actions after which we persist immediately (02 §5).
+/** Actions after which we persist immediately (02 §5 + 10 §3.2).
  *  hardReset is NOT here: it deletes the key and leaves storage empty. */
 function isCriticalAction(action: Action): boolean {
   return (
     action.type === 'buyUpgrade' ||
+    action.type === 'buyAtelierUpgrade' ||
+    action.type === 'collectSpark' ||
     action.type === 'prestige' ||
     action.type === 'importSave' ||
     action.type === 'setSettings'
@@ -195,6 +228,20 @@ function diffEvents(prev: GameState, next: GameState): GameEvent[] {
     const seen = new Set(prev.meta.achievements);
     for (const id of next.meta.achievements) {
       if (!seen.has(id)) events.push({ type: 'achievement', id });
+    }
+  }
+  // v2: new fables (publish appends exactly one; migration is load-time, not diffed).
+  if (next.meta.fables !== prev.meta.fables) {
+    for (let i = prev.meta.fables.length; i < next.meta.fables.length; i++) {
+      events.push({ type: 'fablePenned', fable: next.meta.fables[i] });
+    }
+  }
+  // v2: relic thresholds crossed by a tomesPublished increase.
+  if (next.meta.tomesPublished !== prev.meta.tomesPublished) {
+    for (const relic of RELICS) {
+      if (prev.meta.tomesPublished < relic.tomes && next.meta.tomesPublished >= relic.tomes) {
+        events.push({ type: 'relicUnlocked', id: relic.id });
+      }
     }
   }
   return events;
@@ -221,11 +268,11 @@ export function createGameStore(initial: GameState, deps?: GameStoreDeps): GameS
     }
   }
 
-  function setState(next: GameState, silent = false): void {
+  function setState(next: GameState, silent = false, extraEvents: GameEvent[] = []): void {
     if (next === state) return;
     // silent: importSave replaces the whole state — re-earned milestones and
     // achievements are a re-hydration, not fresh unlocks (no toast flood).
-    const events = silent ? [] : diffEvents(state, next);
+    const events = silent ? [] : [...extraEvents, ...diffEvents(state, next)];
     state = next;
     emit(events);
     notify();
@@ -248,7 +295,27 @@ export function createGameStore(initial: GameState, deps?: GameStoreDeps): GameS
           // storage unavailable — the in-memory reset still proceeds
         }
       }
-      setState(applyAction(state, action, t), action.type === 'importSave');
+      const prev = state;
+      const next = applyAction(prev, action, t);
+      // Action-scoped v2 events (not derivable from a pure state diff).
+      const extra: GameEvent[] = [];
+      if (next !== prev && action.type === 'collectSpark') {
+        // Deterministic re-computation on the PRE-action state — identical to
+        // what the reducer just applied (pure functions, same inputs).
+        extra.push({
+          type: 'sparkCollected',
+          kind: action.kind,
+          reward: sparkRewardSummary(prev, action.kind, t),
+        });
+      }
+      if (next !== prev && action.type === 'buyAtelierUpgrade') {
+        extra.push({
+          type: 'atelierPurchase',
+          id: action.id,
+          level: atelierLevel(next, action.id),
+        });
+      }
+      setState(next, action.type === 'importSave', extra);
       if (isCriticalAction(action)) save();
     },
 

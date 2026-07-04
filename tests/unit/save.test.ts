@@ -11,11 +11,13 @@ import {
   exportSave,
   importSaveString,
   loadSave,
+  MIGRATIONS,
   parseSave,
   persistSave,
   SAVE_BACKUP_KEY,
   SAVE_KEY,
   serializeState,
+  STANDING_OVATION_DURATION_MULT,
 } from '../../src/engine';
 import type { GameState, Migration } from '../../src/engine';
 import { makeState } from './helpers';
@@ -31,6 +33,7 @@ function richState(): GameState {
     s.run.milestones = ['theFirstSpark', 'qty:wanderingMuse:25'];
     s.run.buff = { activeUntil: 111, cooldownUntil: 222 };
     s.meta.goldenQuills = 7;
+    s.meta.stats.lifetimeQuillsEarned = 7; // v2 invariant: wallet ≤ lifetime
     s.meta.tomesPublished = 2;
     s.meta.achievements = ['firstWords', 'publishedAuthor'];
     s.meta.quillResonance = true;
@@ -147,10 +150,13 @@ describe('import sanitization — states the engine itself cannot produce', () =
 
   it('clamps buff timestamps to what the engine could have written at savedAt', () => {
     // activeUntil = year ~287,000 → would mean a permanent ×2/×5 buff.
+    // v2: the longest legit window is Burst of Genius × Standing Ovation (45s).
     const data = tampered((j) => {
       j.run.buff = { activeUntil: 9e15, cooldownUntil: 9e15 };
     });
-    expect(data!.run.buff.activeUntil).toBe(555 + BUFF.durationUpgradedMs);
+    expect(data!.run.buff.activeUntil).toBe(
+      555 + BUFF.durationUpgradedMs * STANDING_OVATION_DURATION_MULT,
+    );
     expect(data!.run.buff.cooldownUntil).toBe(555 + BUFF.cooldownMs);
   });
 
@@ -172,9 +178,12 @@ describe('import sanitization — states the engine itself cannot produce', () =
 });
 
 describe('migration mechanism', () => {
-  it('applies the chain until the current version', () => {
+  it('applies the chain until the current version (v0 stub → real v1→v2 migration)', () => {
     const v0 = { version: 0, savedAt: 10, legacyRun: { inspiration: 50 } };
+    // v2 update: the chain now needs two hops — the stub 0→1 plus the REAL
+    // MIGRATIONS[1] (1→2), proving multi-step chains compose.
     const migrations: Record<number, Migration> = {
+      ...MIGRATIONS,
       0: (old) => {
         const o = old as { savedAt: number; legacyRun: { inspiration: number } };
         const fresh = createInitialState(o.savedAt);
@@ -189,6 +198,7 @@ describe('migration mechanism', () => {
     const migrated = applyMigrations(v0, migrations);
     const data = parseSave(JSON.stringify(migrated), migrations);
     expect(data).not.toBeNull();
+    expect(data!.version).toBe(2);
     expect(data!.run.inspiration).toBe(50);
   });
 

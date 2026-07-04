@@ -2,7 +2,9 @@
 // Achievements are PERMANENT (meta state): they persist through prestige.
 // Each grants +1% global production (+2% with Bound Anthology) via selectors.ts.
 
-import { ACHIEVEMENTS, GENERATORS } from './config';
+import { ACHIEVEMENTS, WELL_ROUNDED_GENERATOR_IDS } from './config';
+import { hasAnyAtelierUpgrade, isAtelierComplete } from './atelier';
+import { uniqueFableCount } from './fables';
 import { totalGeneratorCount } from './generators';
 import { perSecond } from './selectors';
 import type { AchievementCondition, AchievementConfig, GameState } from './types';
@@ -24,7 +26,9 @@ export function isAchievementConditionMet(
     case 'generatorCount':
       return state.run.generators[condition.generator] >= condition.count;
     case 'allGenerators':
-      return GENERATORS.every((g) => state.run.generators[g.id] >= 1);
+      // The 7 base generators only — mythEngine is Atelier-gated and must not
+      // retroactively lock Well-Rounded Library for v1-style players.
+      return WELL_ROUNDED_GENERATOR_IDS.every((id) => state.run.generators[id] >= 1);
     case 'perSecond':
       return perSecond(state, now) >= condition.amount;
     case 'bestOfflineGain':
@@ -33,6 +37,27 @@ export function isAchievementConditionMet(
       return state.meta.stats.buffActivations >= condition.count;
     case 'tomesPublished':
       return state.meta.tomesPublished >= condition.count;
+    // --- v2 (10 §3.5) ---
+    case 'sparksCaught':
+      return state.meta.stats.sparksCaught >= condition.count;
+    case 'quillsFromFragments':
+      return state.meta.stats.quillsFromFragments >= condition.count;
+    case 'fableCount':
+      return state.meta.fables.length >= condition.count;
+    case 'uniqueFableCount':
+      return uniqueFableCount(state.meta.fables) >= condition.count;
+    case 'atelierAny':
+      return hasAnyAtelierUpgrade(state);
+    case 'atelierComplete':
+      return isAtelierComplete(state);
+    case 'fastestPublishBelow':
+      return (
+        state.meta.stats.fastestPublishMs !== null &&
+        state.meta.stats.fastestPublishMs < condition.ms
+      );
+    case 'leaderboardJoined':
+      return typeof state.meta.settings.leaderboard?.token === 'string' &&
+        state.meta.settings.leaderboard.token.length > 0;
   }
 }
 

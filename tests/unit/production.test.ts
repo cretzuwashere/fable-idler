@@ -133,11 +133,23 @@ describe('global multipliers', () => {
   });
 
   it('Golden Quills add +30% each, additive per quill', () => {
+    // v2 GOLDEN RULE: the bonus reads stats.lifetimeQuillsEarned (monotonic),
+    // not the spendable wallet — a non-spender has wallet ≡ lifetime.
     const s = makeState((x) => {
       x.run.generators.inkSprite = 10;
       x.meta.goldenQuills = 2;
+      x.meta.stats.lifetimeQuillsEarned = 2;
     });
     expect(perSecondNoBuff(s)).toBeCloseTo(16, 12); // 10 · 1.6
+  });
+
+  it('v2: the wallet alone contributes NOTHING (spending can never lower production)', () => {
+    const s = makeState((x) => {
+      x.run.generators.inkSprite = 10;
+      x.meta.goldenQuills = 2; // wallet without lifetime — impossible for the
+      x.meta.stats.lifetimeQuillsEarned = 0; // engine, but proves the anchor
+    });
+    expect(perSecondNoBuff(s)).toBeCloseTo(10, 12);
   });
 
   it('buff doubles production only while active', () => {
@@ -160,6 +172,7 @@ describe('full 03 §2 stack, hand-computed', () => {
       x.run.upgrades.goldenInkwell = true;
       x.meta.achievements = ['firstWords', 'storytellerAwakens'];
       x.meta.goldenQuills = 1;
+      x.meta.stats.lifetimeQuillsEarned = 1; // v2 golden rule: bonus reads lifetime
       x.run.buff.activeUntil = 10_000;
     });
     // raw = 10·1.2 + 32 = 44 → ×1.5 = 66 → ×1.02 = 67.32 → ×1.3 = 87.516 → ×2 = 175.032

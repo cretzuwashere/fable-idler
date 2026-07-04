@@ -134,3 +134,115 @@ describe('unlock mechanics', () => {
     ]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// v2 achievements (09 §5.1 — all evaluable purely from state/counters)
+// ---------------------------------------------------------------------------
+
+describe('v2 conditions', () => {
+  it('patronOfTheArts: any Atelier upgrade owned', () => {
+    expect(unlockedIds(makeState())).not.toContain('patronOfTheArts');
+    const s = makeState((x) => void (x.meta.atelier = { restlessHeart: 1 }));
+    expect(unlockedIds(s)).toContain('patronOfTheArts');
+  });
+
+  it('sparkChaser / lightningInABottle: 1 / 25 sparks caught', () => {
+    const one = unlockedIds(makeState((s) => void (s.meta.stats.sparksCaught = 1)));
+    expect(one).toContain('sparkChaser');
+    expect(one).not.toContain('lightningInABottle');
+    expect(
+      unlockedIds(makeState((s) => void (s.meta.stats.sparksCaught = 25))),
+    ).toContain('lightningInABottle');
+  });
+
+  it('pieceByPiece: first quill bound from fragments', () => {
+    const s = makeState((x) => void (x.meta.stats.quillsFromFragments = 1));
+    expect(unlockedIds(s)).toContain('pieceByPiece');
+  });
+
+  it('shelfOfOnesOwn / collectedWorks: 5 fables / 15 UNIQUE titles', () => {
+    const dupes = makeState((s) => {
+      // 15 fables but only 5 unique titles → shelf yes, collected works no
+      s.meta.fables = Array.from({ length: 15 }, (_, i) => ({
+        n: i + 1,
+        title: `T${i % 5}`,
+        publishedAt: 0,
+        runStats: null,
+        gilded: false,
+      }));
+    });
+    const ids = unlockedIds(dupes);
+    expect(ids).toContain('shelfOfOnesOwn');
+    expect(ids).not.toContain('collectedWorks');
+
+    const unique = makeState((s) => {
+      s.meta.fables = Array.from({ length: 15 }, (_, i) => ({
+        n: i + 1,
+        title: `T${i}`,
+        publishedAt: 0,
+        runStats: null,
+        gilded: false,
+      }));
+    });
+    expect(unlockedIds(unique)).toContain('collectedWorks');
+  });
+
+  it('mythmaker: first Myth Engine owned (generatorCount kind reused)', () => {
+    const s = makeState((x) => void (x.run.generators.mythEngine = 1));
+    expect(unlockedIds(s)).toContain('mythmaker');
+  });
+
+  it('nameInLights: leaderboard identity present in settings', () => {
+    expect(unlockedIds(makeState())).not.toContain('nameInLights');
+    const s = makeState((x) => {
+      x.meta.settings.leaderboard = {
+        playerId: 'p',
+        token: 'tok',
+        nickname: 'Quillsworth',
+        lastSubmittedAt: 0,
+      };
+    });
+    expect(unlockedIds(s)).toContain('nameInLights');
+  });
+
+  it('speedReader: fastest publish strictly under 10 minutes', () => {
+    const slow = makeState((x) => void (x.meta.stats.fastestPublishMs = 600_000));
+    expect(unlockedIds(slow)).not.toContain('speedReader');
+    const fast = makeState((x) => void (x.meta.stats.fastestPublishMs = 599_999));
+    expect(unlockedIds(fast)).toContain('speedReader');
+    expect(unlockedIds(makeState())).not.toContain('speedReader'); // null = never published timed
+  });
+
+  it('fullPatronage: EVERY Atelier upgrade at max level', () => {
+    const partial = makeState((x) => {
+      x.meta.atelier = {
+        apprenticeMuse: 3, selfWritingContract: 1, strokeOfGenius: 2, blueprintOfMyths: 1,
+        restlessHeart: 2, thunderousApplause: 1, nightOwlPact: 1, sparkcatchersNet: 2,
+        secondBookmark: 2, editorsDue: 0,
+      };
+    });
+    expect(unlockedIds(partial)).not.toContain('fullPatronage');
+    const full = makeState((x) => {
+      x.meta.atelier = {
+        apprenticeMuse: 3, selfWritingContract: 1, strokeOfGenius: 2, blueprintOfMyths: 1,
+        restlessHeart: 2, thunderousApplause: 1, nightOwlPact: 1, sparkcatchersNet: 2,
+        secondBookmark: 2, editorsDue: 1,
+      };
+    });
+    expect(unlockedIds(full)).toContain('fullPatronage');
+  });
+
+  it('wellRoundedLibrary still needs only the 7 base generators (mythEngine excluded)', () => {
+    const sevenOnly = makeState((s) => {
+      s.run.generators.wanderingMuse = 1;
+      s.run.generators.inkSprite = 1;
+      s.run.generators.talkingRaven = 1;
+      s.run.generators.enchantedQuill = 1;
+      s.run.generators.storyLoom = 1;
+      s.run.generators.dreamLibrary = 1;
+      s.run.generators.fableForge = 1;
+      // mythEngine deliberately 0
+    });
+    expect(unlockedIds(sevenOnly)).toContain('wellRoundedLibrary');
+  });
+});

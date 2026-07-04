@@ -39,6 +39,30 @@
   --radius-pill: 999px;
 }
 
+/* v2 tokens — copied LITERALLY from ai-memory/12-v2-ui-ux.md §0 */
+:root {
+  /* v2 — Atelier / meta (familia --quill) */
+  --glow-quill-soft: 0 0 10px rgba(180, 140, 228, 0.22);   /* carduri Atelier idle */
+  --quill-tint:      rgba(180, 140, 228, 0.12);            /* fundal rând propriu leaderboard, hover Atelier */
+
+  /* v2 — Stray Spark (familia --gold) */
+  --spark-halo: 0 0 18px rgba(255, 217, 122, 0.65), 0 0 42px rgba(232, 181, 77, 0.35);
+
+  /* v2 — cotoare Bookshelf (paleta „piele de carte", seed alege indexul 1–8) */
+  --spine-1: #6d4a8f;  /* violet încins */
+  --spine-2: #8f4a5e;  /* burgund */
+  --spine-3: #4a6d8f;  /* albastru ardezie */
+  --spine-4: #4f7a42;  /* verde (reuse --grow-deep) */
+  --spine-5: #9c7226;  /* auriu vechi (reuse --gold-deep) */
+  --spine-6: #8f6d4a;  /* maro piele */
+  --spine-7: #4a8f7a;  /* verde-albăstrui */
+  --spine-8: #5e5e8f;  /* indigo șters */
+
+  /* v2 — derived (leaderboard row pulse peak; spine edge highlight) */
+  --quill-tint-strong: rgba(180, 140, 228, 0.24);
+  --spine-edge: rgba(255, 255, 255, 0.06);
+}
+
 /* Derived / shared tokens (still the only place with raw color values) */
 :root {
   /* Typography (04 §2 — self-hosted via @fontsource, bundled by Vite) */

@@ -314,3 +314,5 @@ Noi multiplicatoare în lanțul 03 §2 (păstrând regula „aditiv în categori
 - Aritmetică: venit spark 0.036 🪶/spark → ~0.5 🪶/h (sub 20% din venitul din Publish al unui jucător activ); cost total Atelier 96 🪶 vs. acumulare ~25–35 🪶 la 10 tomuri → sink pe orizontul 25–35 tomuri; Apprentice Muse L1 = 1 🪶 ≤ minimul garantat de orice Publish; Myth Engine păstrează raporturile v1 (cost ×15, prod ×5.8, reveal ~50% din baseCost); crit așteptat pe echo ×1.45–1.9 < pragul ×5 interzis în v1.
 - Criteriile v1 neatinse: nimic nou sub 1.000 totalEarned în runda 1; pragul de prestige (100k) și formula quills neschimbate; toate mecanicile v1 rămân valide fără modificări de cifre.
 - Document static — validarea numerică fină e sarcina economiei v2 (simulare), ca în relația 01↔03 din v1.
+
+> **Notă v3 (2026-07-04):** alungirea jocului („The Long Road": generatorii 9–14, praguri de cantitate >100, frânarea formulei de quills peste 1e9, Atelier extins + Relics 50–200 tomes) e proiectată în `13-longevity-design.md`; acest document rămâne contractul v2, neschimbat.

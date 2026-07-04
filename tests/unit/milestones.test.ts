@@ -84,11 +84,40 @@ describe('idempotence and prestige reset', () => {
     const after = publishTheTome(s, 0);
     expect(after.run.milestones).toEqual([]);
     expect(after.meta.achievements).toEqual(['firstWords']); // meta intact
-    // fresh run re-earns them as thresholds are crossed again
+    // fresh run re-earns them as thresholds are crossed again.
+    // v2: the tomesPublished milestones re-add instantly (config order).
     const rerun = checkMilestones({
       ...after,
       run: { ...after.run, totalEarned: 10 },
     });
-    expect(rerun.run.milestones).toEqual(['theFirstSpark', 'hallOfDeeds']);
+    expect(rerun.run.milestones).toEqual([
+      'theFirstSpark',
+      'hallOfDeeds',
+      'theGildedDoor',
+      'theFirstSpine',
+      'wordTravelsFast',
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v2 milestones
+// ---------------------------------------------------------------------------
+
+describe('v2 reveal milestones', () => {
+  it('aLightAtTheWindow (Stray Spark gate) unlocks exactly at 1,000 run totalEarned', () => {
+    const below = checkMilestones(makeState((s) => void (s.run.totalEarned = 999)));
+    expect(below.run.milestones).not.toContain('aLightAtTheWindow');
+    const at = checkMilestones(makeState((s) => void (s.run.totalEarned = 1_000)));
+    expect(at.run.milestones).toContain('aLightAtTheWindow');
+  });
+
+  it('the three Act-2 panels reveal on tomesPublished ≥ 1, not on totalEarned', () => {
+    const rich = checkMilestones(makeState((s) => void (s.run.totalEarned = 10_000_000)));
+    expect(rich.run.milestones).not.toContain('theGildedDoor');
+    const published = checkMilestones(makeState((s) => void (s.meta.tomesPublished = 1)));
+    expect(published.run.milestones).toContain('theGildedDoor');
+    expect(published.run.milestones).toContain('theFirstSpine');
+    expect(published.run.milestones).toContain('wordTravelsFast');
   });
 });

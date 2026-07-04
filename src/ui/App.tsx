@@ -112,11 +112,15 @@ export function App({ offlineReport }: { offlineReport: OfflineReport | null }) 
         }
         return;
       }
-      const achievement = ACHIEVEMENTS.find((a) => a.id === event.id);
-      if (achievement) {
-        const pct = hasUpgrade(store.getState(), 'boundAnthology') ? 2 : 1;
-        pushToast('achievement', achievement.name, `${achievement.description} · +${pct}% production`);
+      if (event.type === 'achievement') {
+        const achievement = ACHIEVEMENTS.find((a) => a.id === event.id);
+        if (achievement) {
+          const pct = hasUpgrade(store.getState(), 'boundAnthology') ? 2 : 1;
+          pushToast('achievement', achievement.name, `${achievement.description} · +${pct}% production`);
+        }
       }
+      // v2 events (atelierPurchase / sparkCollected / fablePenned / relicUnlocked)
+      // are ignored here for now — Agent UI v2 wires their toasts (12 §8).
     },
     [pushToast, store],
   );
