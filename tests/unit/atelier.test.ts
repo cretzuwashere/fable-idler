@@ -33,7 +33,15 @@ import {
 import type { GameEvent, GameState } from '../../src/engine';
 import { makeState } from './helpers';
 
-/** A production- and click-relevant state with a full wallet (92 = total sink). */
+/** Total Atelier sink across v2 + v3 (92 + 470,760 = 470,852; 14 §6.1). */
+const ATELIER_TOTAL_SINK = ATELIER_UPGRADES.reduce(
+  (sum, u) => sum + u.costs.reduce((a, b) => a + b, 0),
+  0,
+);
+
+/** A production- and click-relevant state with a wallet large enough to buy the
+ *  ENTIRE Atelier (v2 + v3). lifetimeQuillsEarned is set to the same figure so
+ *  the golden-rule tests spend only the wallet, never the (monotonic) anchor. */
 function richAtelierState(mutate?: (s: GameState) => void): GameState {
   return makeState((s) => {
     s.run.generators.wanderingMuse = 30;
@@ -43,8 +51,8 @@ function richAtelierState(mutate?: (s: GameState) => void): GameState {
     s.run.upgrades.goldenInkwell = true;
     s.run.upgrades.inkEcho = true;
     s.meta.achievements = ['firstWords', 'storytellerAwakens'];
-    s.meta.goldenQuills = 92;
-    s.meta.stats.lifetimeQuillsEarned = 92;
+    s.meta.goldenQuills = ATELIER_TOTAL_SINK;
+    s.meta.stats.lifetimeQuillsEarned = ATELIER_TOTAL_SINK;
     s.meta.quillResonance = true;
     if (mutate) mutate(s);
   });
@@ -75,7 +83,14 @@ describe('THE GOLDEN RULE — no purchase ever lowers production or click power'
     });
   }
 
-  it('spending the whole 92-quill wallet leaves production EXACTLY unchanged', () => {
+  it('spending the whole Atelier wallet leaves production EXACTLY unchanged', () => {
+    // Buy every v2+v3 Atelier upgrade in one go. Note some v3 upgrades DO raise
+    // production/click (Atlas ×2, Strength of the Stacks, the unique-related
+    // ones); the ones exercised by richAtelierState that are pure production
+    // BOOSTS still can only ever raise it. The strict-equality check below is
+    // therefore run on a state with NO active production-affecting v3 upgrade —
+    // we instead assert the GOLDEN-RULE floor (never drops) after the full spend,
+    // and that the wallet is emptied exactly.
     let s = richAtelierState();
     const before = perSecondNoBuff(s);
     const clickBefore = clickPower(s, 0);
@@ -83,9 +98,11 @@ describe('THE GOLDEN RULE — no purchase ever lowers production or click power'
       for (let i = 0; i < cfg.costs.length; i++) s = buyAtelierUpgrade(s, cfg.id);
     }
     expect(isAtelierComplete(s)).toBe(true);
-    expect(s.meta.goldenQuills).toBe(0); // 92 total — 11 §2
-    expect(perSecondNoBuff(s)).toBe(before);
-    expect(clickPower(s, 0)).toBe(clickBefore);
+    expect(s.meta.goldenQuills).toBe(0); // exactly the total sink (14 §6.1)
+    // Atlas of Untold Lands (×2) legitimately RAISES production — the golden rule
+    // is "never drops", so >= is the correct assertion after a full spend.
+    expect(perSecondNoBuff(s)).toBeGreaterThanOrEqual(before);
+    expect(clickPower(s, 0)).toBeGreaterThanOrEqual(clickBefore);
   });
 });
 

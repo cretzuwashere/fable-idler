@@ -6,6 +6,7 @@
 // settings}). Plus hostile-payload sanitization of every NEW v2 field.
 import { describe, expect, it } from 'vitest';
 import {
+  CURRENT_SAVE_VERSION,
   generateFadedTitle,
   parseSave,
   perSecondNoBuff,
@@ -81,10 +82,13 @@ function migratedState(): GameState {
 }
 
 describe('MIGRATIONS[1] — the 10 §3.3 defaults table, field by field', () => {
-  it('produces a valid version-2 payload with savedAt intact', () => {
+  it('produces a valid current-version payload with savedAt intact (v1→v2→v3)', () => {
     const data = migrateFixture();
-    expect(data.version).toBe(2);
+    // The chain now runs all the way to v3; every v2 field still carries through
+    // the additive v2→v3 migration (verified field-by-field below).
+    expect(data.version).toBe(CURRENT_SAVE_VERSION);
     expect(data.savedAt).toBe(V1_FIXTURE.savedAt);
+    expect(data.run.seededInspiration).toBe(0); // v3 field: no impact (q(300)=0)
   });
 
   it('GOLDEN RULE: lifetimeQuillsEarned = floor(v1 goldenQuills); wallet untouched', () => {
@@ -313,7 +317,11 @@ describe('hostile v2 payloads — sanitization of the NEW fields', () => {
   });
 
   it('sanitizeSaveData still rejects wrong versions outright', () => {
-    expect(sanitizeSaveData({ version: 3, savedAt: 1, run: {}, meta: {} })).toBeNull();
+    // v3 is now CURRENT — a non-current version is rejected before shape checks.
+    expect(sanitizeSaveData({ version: 4, savedAt: 1, run: {}, meta: {} })).toBeNull();
+    expect(sanitizeSaveData({ version: 2, savedAt: 1, run: {}, meta: {} })).toBeNull();
     expect(sanitizeSaveData({ version: 1, savedAt: 1, run: {}, meta: {} })).toBeNull();
+    // The current version with an invalid (empty) run shape is still rejected.
+    expect(sanitizeSaveData({ version: CURRENT_SAVE_VERSION, savedAt: 1, run: {}, meta: {} })).toBeNull();
   });
 });

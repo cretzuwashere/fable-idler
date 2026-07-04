@@ -180,3 +180,37 @@ docker compose run --rm --build test-e2e   → 17 passed (40.3s) — web RECONST
 docker compose run --rm test-unit          → Test Files 19 passed (19) / Tests 297 passed (297)
 docker compose down && docker compose up -d web api   → ambele healthy la final (stack lăsat pornit)
 ```
+
+---
+
+# Addendum Agent QA v3 — E2E longevity (New Wing → tier 9 → bonus unic) (2026-07-04)
+
+## Verdict: ZERO bug-uri de aplicație găsite; ZERO reparații de spec-uri v1/v2
+
+Noul `tests/e2e/14-longevity.spec.ts` a trecut **din prima rulare** pe build-ul de producție servit de nginx (web reconstruit cu `--build`, api healthy), cu guard-ul de console errors activ. **Toate cele 17 spec-uri v1/v2 au rămas verzi neatinse** — spre deosebire de trecerea v1→v2 (care a cerut fix-ul „1/14"→dinamic în `04-unlocks` și filtrul `/api/` în `fixtures.ts`), trecerea v2→v3 nu a stricat niciun spec existent: contractul `data-testid` a rămas stabil, iar header-ul de achievements era deja dinamic (`{unlocked}/{ACHIEVEMENTS.length}`), deci saltul 24→36 nu a atins nimic. **Nicio modificare în `src/`, `server/`, config-uri.** Suita unit+server: 399/399.
+
+## 1. Ce verifică `14-longevity.spec.ts` (totul prin UI-ul real; hook doar pentru citit + un `dispatch buyGenerator`)
+
+- **Bank de quills sub genunchi:** `addInspiration(1e9)` → preview „+100" (EXACT `floor(sqrt(1e9/1e5))` = 100, pe segmentul 1 al formulei segmentate — dovadă live că prestige-ul e neschimbat sub 1e9) → publish real prin dialogul cu checkbox → `goldenQuills=100`, `tomesPublished=1`, `newWingLevel=0`.
+- **Gate de wing, nu doar reveal:** după `addInspiration(1e10)` (> reveal-ul 3e9 al lui Saga Citadel), rândul `generator-sagaCitadel` e ABSENT (`toHaveCount(0)`) fără New Wing — exact invarianta „rândul nu se randează fără nivel" (13 §1.1), verificată în browser real, nu doar în unit.
+- **Cumpărarea New Wing L1 cu dialogul de confirmare ≥10 🪶:** `atelier-buy-theNewWing` (25 🪶) → `atelier-confirm-dialog` vizibil → `atelier-confirm` → `newWingLevel=1`, purse 100→75, pips „Level 1 of 3". (Prima dată când E2E exercită dialogul de confirmare Atelier — v2 ajungea doar la cumpărături de 1 🪶.)
+- **Saga Citadel APARE** în shop imediat după wing (`generator-sagaCitadel` vizibil, textul „Saga Citadel"); cumpărare cu inspiration reală prin `buy-sagaCitadel` → count crește de la 1 la 2.
+- **Bonusul unic la 200:** `addInspiration(1e30)` + `dispatch buyGenerator qty:'max'` (aceeași cale de engine ca butonul „Max"; 150→200 prin ticks reale ar dura ore) → `sagaCitadel ≥ 200`, `isUniqueBonusActive=true`, iar cardul afișează **badge-ul UNIC violet/gold** `✦ The Garrison Sallies Forth` (`.generator-row__badge--unique` vizibil) alături de badge-ul de multiplicator de prag.
+
+## 2. Capcane de infrastructură de test v3 (evitate prin design; nu sunt bug-uri de aplicație)
+
+| # | Capcană | Cum s-a evitat |
+|---|---|---|
+| 1 | **`formatNumber(1000)` = „1.00K", nu „1,000"** — un assert pe „1,000" în preview-ul de prestige ar fi picat | Bank la `1e9` (nu `1e11`) ⇒ 100 quills, care se formatează ca întreg „+100"; suficient pentru L1 (25) cu marjă, cu preview lizibil |
+| 2 | **Post-prestige coloana centrală dispare** până se re-ating milestone-urile rundei (comportament v1) | `addInspiration(100k)` imediat după publish (nota 05 §E2E #5) înainte de a apăsa tab-atelier |
+| 3 | **150→200 owned prin joc real = ore** | pragul unic se atinge prin `buyGenerator qty:'max'` cu buget uriaș (1e30, care depășește costul Deep-Shelves-tapered al 200 de unități) — cale de engine identică cu butonul „Max", nu un shortcut de test |
+| 4 | **Reveal-ul singur NU e gate-ul** — a asserta absența lui Saga Citadel doar înainte de reveal ar fi trecut degeaba | totalEarned e împins DELIBERAT peste 3e9 ÎNAINTE de wing, ca `toHaveCount(0)` să dovedească gate-ul de wing, nu lipsa reveal-ului |
+| 5 | **Layout-agnostic pe tab-uri** — pe desktop shop-ul stă montat, pe layout-uri înguste e un tab | click pe `tab-generators` doar dacă `count() > 0` (`if (await genTab.count()) await genTab.click()`) |
+
+## 3. Validarea finală v3
+
+```
+docker compose run --rm --build test-e2e   → 18 passed (41.3s) — web RECONSTRUIT + api healthy
+docker compose run --rm test-unit          → Test Files 24 passed (24) / Tests 399 passed (399)
+docker compose down && docker compose up -d web api   → ambele healthy la final (stack lăsat pornit)
+```

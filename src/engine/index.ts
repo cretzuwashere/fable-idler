@@ -44,17 +44,23 @@ export {
   ATELIER_UPGRADES,
   ATELIER_UPGRADE_IDS,
   ATELIER_UPGRADE_INDEX,
+  ATLAS_GLOBAL_MULT,
   AUTOSAVE_TICKS,
   BOOKSHELF,
   BUFF,
   BUFF_UNLOCK_MILESTONE,
   CLICK_BASE,
+  CURATORS_PATIENCE_EXTRA_CAP_MS,
+  DEEP_SHELVES,
   DOG_EARED_PAGE_START_INSPIRATION,
   EDITORS_DUE_BONUS_QUILLS,
+  ENDLESS_SHELF_BOOKSHELF_CAP,
   FABLE_ADJECTIVES,
   FABLE_CREATURES,
   FABLE_OBJECTS,
   FABLE_VERB_PHRASES,
+  FOREWORD_CAP,
+  FOREWORD_START_FRACTION,
   GENERATORS,
   GENERATOR_IDS,
   GENERATOR_INDEX,
@@ -66,11 +72,19 @@ export {
   MUSES_CHORUS_MULT,
   NIGHT_OWL_EXTRA_CAP_MS,
   OFFLINE,
+  OFFLINE_EFFICIENCY_CAP,
   PATRONS_FAVOR_DISCOUNT,
+  PERPETUAL_MANUSCRIPT_KEPT_IDS,
+  PILGRIMS_PAGES_FRAGMENTS_PER_QUILL,
   PRESTIGE_DIVISOR,
   PRESTIGE_MIN_TOTAL_EARNED,
+  PRESTIGE_V3,
+  QTY_FINALE_MULT,
+  QTY_FINALE_THRESHOLD,
   QTY_MILESTONE_MULT,
   QTY_MILESTONE_THRESHOLDS,
+  QTY_STEP_MULT,
+  QTY_THRESHOLDS_V3,
   QUILL_BONUS,
   RAVENS_GOSSIP_RATE,
   READERS_LETTER_OFFLINE_BONUS,
@@ -83,14 +97,23 @@ export {
   SHARPENED_NIB_MULT,
   SPARK,
   STANDING_OVATION_DURATION_MULT,
+  STRENGTH_OF_STACKS,
   STROKE_OF_GENIUS,
   THUNDEROUS_APPLAUSE_PROD_SECONDS,
   TICK_MS,
+  UNIQUE_BONUSES,
+  UNIQUE_THRESHOLD,
+  UNIQUE_THRESHOLD_TELLING,
   UPGRADES,
   UPGRADE_INDEX,
+  V3_RUN_UPGRADES,
+  V3_RUN_UPGRADE_BY_GEN,
+  V3_RUN_UPGRADE_ID_SET,
+  V3_RUN_UPGRADE_UNLOCK_OWNED,
   WEAVERS_RHYTHM_RATE,
   WELL_ROUNDED_GENERATOR_IDS,
 } from './config';
+export type { UniqueBonusConfig, V3RunUpgradeConfig } from './config';
 
 // State factories
 export {
@@ -101,6 +124,8 @@ export {
 
 // Generators
 export {
+  bandGrowth,
+  bestPaybackGenerator,
   bulkCost,
   buyGenerator,
   costOf,
@@ -112,7 +137,7 @@ export {
 // Upgrades
 export { buyUpgrade, hasUpgrade, isUpgradeUnlocked, meetsUnlockCondition } from './upgrades';
 
-// Atelier (v2)
+// Atelier (v2 + v3)
 export {
   apprenticeStartMuses,
   atelierLevel,
@@ -122,16 +147,27 @@ export {
   buyAtelierUpgrade,
   canBuyAtelierUpgrade,
   hasAnyAtelierUpgrade,
+  hasClockworkUnderstudy,
   hasRelic,
   isAtelierComplete,
+  newWingLevel,
   unlockedRelics,
 } from './atelier';
 
-// Stray Spark (v2)
+// Unique bonuses (v3)
+export {
+  activeUniqueBonus,
+  isUniqueBonusActive,
+  uniqueThreshold,
+} from './unique-bonuses';
+
+// Stray Spark (v2 + v3)
 export {
   applySparkReward,
+  fragmentsPerQuill,
   rollSparkKind,
   SPARK_KINDS,
+  sparkRewardMult,
   sparkRewardSummary,
   sparkWeightTotal,
 } from './spark';
@@ -180,9 +216,11 @@ export {
 // Prestige
 export {
   canPrestige,
+  prestigeNetTotalEarned,
   prestigePreview,
   publishTheTome,
   quillsForTotalEarned,
+  seedInspirationForNextRun,
 } from './prestige';
 
 // Offline
@@ -193,6 +231,7 @@ export type { OfflineReport } from './offline';
 export {
   achievementMultiplier,
   bookshelfMultiplier,
+  buffProdMult,
   clickPower,
   clickValue,
   critChance,
@@ -210,6 +249,7 @@ export {
   quillMultiplier,
   rawProduction,
   sparkIntervalRange,
+  v3GlobalMultiplier,
 } from './selectors';
 
 // Tick
@@ -230,7 +270,7 @@ export {
   SAVE_KEY,
   serializeState,
 } from './save';
-export type { LoadedSave, Migration, SaveDataV1, SaveDataV2, StorageLike } from './save';
+export type { LoadedSave, Migration, SaveDataV1, SaveDataV2, SaveDataV3, StorageLike } from './save';
 
 // Number formatting
 export { formatNumber, formatRate } from './format-numbers';

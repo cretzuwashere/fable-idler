@@ -11,7 +11,17 @@ export type GeneratorId =
   | 'fableForge'
   // v2 — generator 8 (10 §3.1). Shop visibility additionally requires the
   // blueprintOfMyths Atelier upgrade (see isGeneratorVisibleInShop).
-  | 'mythEngine';
+  | 'mythEngine'
+  // v3 — generators 9–14 (13 §1 / 14 §2). Shop visibility is gated on the
+  // corresponding level of The New Wing (isGeneratorVisibleInShop): 9–10 need
+  // L1, 11–12 need L2, 13–14 need L3. Cost/production/qty-milestones otherwise
+  // follow the exact same rules as tiers 1–8.
+  | 'sagaCitadel'
+  | 'narratorsGuild'
+  | 'pantheonPress'
+  | 'worldTreeArchive'
+  | 'sleepingCity'
+  | 'onceUponATime';
 
 // ---------------------------------------------------------------------------
 // v2 id unions (09/10 — the ids are the shared contract, used literally)
@@ -27,9 +37,25 @@ export type AtelierUpgradeId =
   | 'nightOwlPact'
   | 'sparkcatchersNet'
   | 'secondBookmark'
-  | 'editorsDue';
+  | 'editorsDue'
+  // v3 — The Gilded Atelier extended (13 §4.1 / 14 §6.1).
+  | 'theNewWing'
+  | 'clockworkUnderstudy'
+  | 'curatorsPatience'
+  | 'perpetualManuscript'
+  | 'strengthOfTheStacks'
+  | 'atlasOfUntoldLands';
 
-export type RelicId = 'dogEaredPage' | 'standingOvation' | 'inkThatRemembers' | 'readersLetter';
+export type RelicId =
+  | 'dogEaredPage'
+  | 'standingOvation'
+  | 'inkThatRemembers'
+  | 'readersLetter'
+  // v3 — relics at tomes 50/75/100/200 (13 §4.2 / 14 §6.2).
+  | 'forewordByTheEditor'
+  | 'pilgrimsPages'
+  | 'hundredthTelling'
+  | 'endlessShelf';
 
 export type SparkRewardKind =
   | 'inkBurst'
@@ -88,7 +114,16 @@ export type UpgradeId =
   | 'inkEcho'
   | 'patronsFavor'
   | 'boundAnthology'
-  | 'quillResonance';
+  | 'quillResonance'
+  // v3 — the 7 run-scoped re-scalers for tiers 1–7 (13 §2.4 / 14 §4.3).
+  // Run-scoped (reset at prestige) and NOT kept by Perpetual Manuscript.
+  | 'hundredNamesOfMuse'
+  | 'inkTide'
+  | 'parliamentOfRavens'
+  | 'quillstorm'
+  | 'theGreatTapestry'
+  | 'infiniteStacks'
+  | 'forgeOfLegends';
 
 /** Upgrades that live in run state and reset at prestige (all except quillResonance). */
 export type RunUpgradeId = Exclude<UpgradeId, 'quillResonance'>;
@@ -118,7 +153,20 @@ export type AchievementId =
   | 'mythmaker'
   | 'nameInLights'
   | 'speedReader'
-  | 'fullPatronage';
+  | 'fullPatronage'
+  // v3 (13 §5.1) — 12 new achievements, total 36.
+  | 'aLongerRoad'
+  | 'cosmologySection'
+  | 'twoHundredVoices'
+  | 'deepShelves'
+  | 'aNumberNeedsAName'
+  | 'beyondTheAlphabet'
+  | 'masterOfTheWing'
+  | 'aThousandFeathers'
+  | 'marathonNovelist'
+  | 'completeWorks'
+  | 'onceUponAHundred'
+  | 'nothingLeftUnwritten';
 
 export type RevealMilestoneId =
   | 'theFirstSpark'
@@ -136,7 +184,14 @@ export type RevealMilestoneId =
   | 'aLightAtTheWindow'
   | 'theGildedDoor'
   | 'theFirstSpine'
-  | 'wordTravelsFast';
+  | 'wordTravelsFast'
+  // v3 (13 §5.2) — 6 reveal milestones, one per new tier.
+  | 'bannersOnTheHorizon'
+  | 'aDistantHarmony'
+  | 'rumorsOfDivinity'
+  | 'rootsUnderTheFloorboards'
+  | 'lightsBeyondTheHills'
+  | 'theOldestSentence';
 
 /** Reveal milestone ids plus quantity milestones in the form `qty:<generatorId>:<threshold>`. */
 export type MilestoneId = string;
@@ -167,6 +222,13 @@ export interface RunState {
   buffActivationsThisRun: number;
   /** epoch ms of the last Self-Writing Contract auto-buy (max 1/sec). */
   lastAutoBuyAt: number;
+  // --- v3 (14 §5.4) ---
+  /** Seed capital granted at the START of this run (Dog-Eared Page + Foreword by
+   *  the Editor). It flows into inspiration AND totalEarned, but the prestige
+   *  formula runs on (totalEarnedThisRun − seededInspiration) — an anti-exploit
+   *  guard so a big Foreword head-start cannot mint quills on an instant publish.
+   *  Set once when the run is created; clamped to [0, totalEarned] on load. */
+  seededInspiration: number;
 }
 
 export interface MetaStats {
@@ -282,13 +344,34 @@ export type AchievementCondition =
   | { kind: 'atelierAny' }
   | { kind: 'atelierComplete' }
   | { kind: 'fastestPublishBelow'; ms: number }
-  | { kind: 'leaderboardJoined' };
+  | { kind: 'leaderboardJoined' }
+  // --- v3 (13 §5.1) — all purely derivable from state/counters ---
+  /** Any generator of tier >= tierAtLeast is owned (≥1). */
+  | { kind: 'anyGeneratorFromTier'; tierAtLeast: number }
+  /** At least one of every generator (all 14 tiers). */
+  | { kind: 'allGeneratorsV3' }
+  /** owned(any single generator) reaches `count` (highest single stack). */
+  | { kind: 'anyGeneratorCount'; count: number }
+  /** run totalEarned reaches `amount` in a single run. */
+  | { kind: 'runTotalEarned'; amount: number }
+  /** lifetimeInspiration reaches `amount`. */
+  | { kind: 'lifetimeInspirationAmount'; amount: number }
+  /** The New Wing at a given level. */
+  | { kind: 'atelierLevel'; upgrade: AtelierUpgradeId; level: number }
+  /** lifetimeQuillsEarned reaches `count`. */
+  | { kind: 'lifetimeQuills'; count: number }
+  /** Every relic unlocked AND every Atelier upgrade maxed (100% meta). */
+  | { kind: 'metaComplete' };
 
 export type MilestoneRequirement =
   | { kind: 'totalEarned'; amount: number }
   | { kind: 'firstAchievement' }
   // v2 — re-added instantly after every prestige (same mechanism as hallOfDeeds)
-  | { kind: 'tomesPublished'; count: number };
+  | { kind: 'tomesPublished'; count: number }
+  // v3 — a tier-9+ reveal: run totalEarned reached AND The New Wing at `wing`
+  // (13 §5.2 / 14 §2). Like blueprintOfMyths, the row does not render at all
+  // without the wing level; the reveal toast fires when both hold.
+  | { kind: 'totalEarnedAndWing'; amount: number; wing: number };
 
 export interface GeneratorConfig {
   readonly id: GeneratorId;
@@ -299,6 +382,9 @@ export interface GeneratorConfig {
   readonly growth: number;
   /** Generator becomes visible in the shop at this run totalEarned. */
   readonly revealAt: number;
+  /** v3 — required level of The New Wing to render this row (1/2/3). Absent for
+   *  tiers 1–8 (no wing gate; mythEngine keeps its own blueprintOfMyths gate). */
+  readonly wing?: number;
 }
 
 export interface UpgradeConfig {

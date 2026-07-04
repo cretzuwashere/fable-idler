@@ -24,6 +24,8 @@ export function createInitialRunState(now: number = 0): RunState {
     sparkBuff: null,
     buffActivationsThisRun: 0,
     lastAutoBuyAt: 0,
+    // v3
+    seededInspiration: 0,
   };
 }
 

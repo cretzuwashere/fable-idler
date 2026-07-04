@@ -15,6 +15,7 @@ import type {
   RelicId,
   RevealMilestoneConfig,
   RevealMilestoneId,
+  RunUpgradeId,
   UpgradeConfig,
   UpgradeId,
 } from './types';
@@ -101,6 +102,76 @@ export const GENERATORS: readonly GeneratorConfig[] = [
     growth: 1.12,
     revealAt: 150_000_000,
   },
+  // --- v3 — generators 9–14 (14 §2, FINAL numbers; supersede 13 §1.1) ---
+  // Cost ×20–25 per tier; baseProd recalibrated to payback ~×3/tier; growth
+  // 1.11/1.12 on tiers 13–14. Each row renders ONLY with the matching level of
+  // The New Wing (wing field → isGeneratorVisibleInShop), otherwise it follows
+  // the exact same cost/production/qty-milestone rules as every other tier.
+  {
+    id: 'sagaCitadel',
+    name: 'Saga Citadel',
+    flavor:
+      'A fortress-city where every rampart is a chapter and the garrison drills in iambic pentameter.',
+    baseCost: 6e9,
+    baseProd: 3.2e5,
+    growth: 1.11,
+    revealAt: 3e9,
+    wing: 1,
+  },
+  {
+    id: 'narratorsGuild',
+    name: "The Narrators' Guild",
+    flavor:
+      "A thousand narrators, each assigned to somebody else's life; union rules strictly forbid narrating their own.",
+    baseCost: 1.3e11,
+    baseProd: 2.4e6,
+    growth: 1.11,
+    revealAt: 6.5e10,
+    wing: 1,
+  },
+  {
+    id: 'pantheonPress',
+    name: 'Pantheon Press',
+    flavor:
+      'The pantheons the Myth Engine dreamed up have founded their own printing press — they mostly publish memoirs about you.',
+    baseCost: 3e12,
+    baseProd: 1.8e7,
+    growth: 1.11,
+    revealAt: 1.5e12,
+    wing: 2,
+  },
+  {
+    id: 'worldTreeArchive',
+    name: 'World-Tree Archive',
+    flavor:
+      'An archive grafted onto the World-Tree: every leaf a story, and autumn is the annual backup.',
+    baseCost: 7e13,
+    baseProd: 1.4e8,
+    growth: 1.1,
+    revealAt: 3.5e13,
+    wing: 2,
+  },
+  {
+    id: 'sleepingCity',
+    name: 'The Sleeping City',
+    flavor:
+      'A city asleep for a thousand years, dreaming its citizens into being — and lately, it has begun dreaming you.',
+    baseCost: 1.7e15,
+    baseProd: 1.05e9,
+    growth: 1.11,
+    revealAt: 8.5e14,
+    wing: 3,
+  },
+  {
+    id: 'onceUponATime',
+    name: 'Once Upon a Time',
+    flavor: 'The oldest sentence in the world; every story ever told still lives inside it.',
+    baseCost: 4.2e16,
+    baseProd: 8e9,
+    growth: 1.12,
+    revealAt: 2.1e16,
+    wing: 3,
+  },
 ];
 
 export const GENERATOR_IDS: readonly GeneratorId[] = GENERATORS.map((g) => g.id);
@@ -109,11 +180,19 @@ export const GENERATOR_INDEX: Readonly<Record<GeneratorId, GeneratorConfig>> = O
   GENERATORS.map((g) => [g.id, g]),
 ) as Record<GeneratorId, GeneratorConfig>;
 
-/** The 7 base-game generators — the "Well-Rounded Library" achievement stays
- *  evaluable without the (Atelier-gated) Myth Engine, exactly as in v1. */
-export const WELL_ROUNDED_GENERATOR_IDS: readonly GeneratorId[] = GENERATORS.filter(
-  (g) => g.id !== 'mythEngine',
-).map((g) => g.id);
+/** The 7 base-game generators (tiers 1–7) — the "Well-Rounded Library" v1
+ *  achievement stays evaluable without the Atelier/Wing-gated later tiers
+ *  (mythEngine and the 6 v3 generators are excluded, exactly as in v1). The v3
+ *  "Cosmology Section" achievement requires ALL 14 (allGeneratorsV3). */
+export const WELL_ROUNDED_GENERATOR_IDS: readonly GeneratorId[] = [
+  'wanderingMuse',
+  'inkSprite',
+  'talkingRaven',
+  'enchantedQuill',
+  'storyLoom',
+  'dreamLibrary',
+  'fableForge',
+];
 
 // ---------------------------------------------------------------------------
 // Quantity milestones (03 §5): 25/50/100 owned of one generator → that generator ×2 each.
@@ -291,11 +370,98 @@ export const UPGRADES: readonly UpgradeConfig[] = [
     cost: 2_500, // [DECIZIE DE CALIBRARE] 03 §4: 10.000 → 2.500
     unlock: [{ kind: 'tomesPublished', count: 1 }],
   },
+  // --- v3 — the 7 run-scoped re-scalers for tiers 1–7 (14 §4.3, costs +
+  // multipliers FINAL, doubled from 13 §2.4). Unlock at 150 owned of the target
+  // generator; run-scoped like every other upgrade here, and NOT kept by
+  // Perpetual Manuscript (perpetualManuscriptKept excludes them). Their
+  // production multiplier lives in selectors.ts (V3_RUN_UPGRADE_INDEX).
+  {
+    id: 'hundredNamesOfMuse',
+    name: 'A Hundred Names of the Muse',
+    description: 'Wandering Muse production ×1000.',
+    cost: 5e10,
+    unlock: [{ kind: 'generatorCount', generator: 'wanderingMuse', count: 150 }],
+  },
+  {
+    id: 'inkTide',
+    name: 'The Ink Tide',
+    description: 'Ink Sprite production ×800.',
+    cost: 2e11,
+    unlock: [{ kind: 'generatorCount', generator: 'inkSprite', count: 150 }],
+  },
+  {
+    id: 'parliamentOfRavens',
+    name: 'Parliament of Ravens',
+    description: 'Talking Raven production ×600.',
+    cost: 8e11,
+    unlock: [{ kind: 'generatorCount', generator: 'talkingRaven', count: 150 }],
+  },
+  {
+    id: 'quillstorm',
+    name: 'Quillstorm',
+    description: 'Enchanted Quill production ×500.',
+    cost: 3e12,
+    unlock: [{ kind: 'generatorCount', generator: 'enchantedQuill', count: 150 }],
+  },
+  {
+    id: 'theGreatTapestry',
+    name: 'The Great Tapestry',
+    description: 'Story Loom production ×400.',
+    cost: 1.2e13,
+    unlock: [{ kind: 'generatorCount', generator: 'storyLoom', count: 150 }],
+  },
+  {
+    id: 'infiniteStacks',
+    name: 'The Infinite Stacks',
+    description: 'Dream Library production ×300.',
+    cost: 5e13,
+    unlock: [{ kind: 'generatorCount', generator: 'dreamLibrary', count: 150 }],
+  },
+  {
+    id: 'forgeOfLegends',
+    name: 'Forge of Legends',
+    description: 'Fable Forge production ×200.',
+    cost: 2e14,
+    unlock: [{ kind: 'generatorCount', generator: 'fableForge', count: 150 }],
+  },
 ];
 
 export const UPGRADE_INDEX: Readonly<Record<UpgradeId, UpgradeConfig>> = Object.fromEntries(
   UPGRADES.map((u) => [u.id, u]),
 ) as Record<UpgradeId, UpgradeConfig>;
+
+// ---------------------------------------------------------------------------
+// v3 — the 7 run-scoped re-scalers (14 §4.3). Each multiplies ONE tier-1..7
+// generator's production; the multiplier is applied in selectors.ts (step 2,
+// alongside the per-gen v1 upgrades). Costs/unlocks live in UPGRADES above.
+// ---------------------------------------------------------------------------
+
+export interface V3RunUpgradeConfig {
+  readonly id: RunUpgradeId;
+  readonly gen: GeneratorId;
+  readonly mult: number;
+}
+
+export const V3_RUN_UPGRADES: readonly V3RunUpgradeConfig[] = [
+  { id: 'hundredNamesOfMuse', gen: 'wanderingMuse', mult: 1000 },
+  { id: 'inkTide', gen: 'inkSprite', mult: 800 },
+  { id: 'parliamentOfRavens', gen: 'talkingRaven', mult: 600 },
+  { id: 'quillstorm', gen: 'enchantedQuill', mult: 500 },
+  { id: 'theGreatTapestry', gen: 'storyLoom', mult: 400 },
+  { id: 'infiniteStacks', gen: 'dreamLibrary', mult: 300 },
+  { id: 'forgeOfLegends', gen: 'fableForge', mult: 200 },
+];
+
+export const V3_RUN_UPGRADE_ID_SET: ReadonlySet<UpgradeId> = new Set(
+  V3_RUN_UPGRADES.map((u) => u.id),
+);
+
+/** For a given generator, the re-scaler upgrade that boosts it (or undefined). */
+export const V3_RUN_UPGRADE_BY_GEN: Readonly<Partial<Record<GeneratorId, V3RunUpgradeConfig>>> =
+  Object.fromEntries(V3_RUN_UPGRADES.map((u) => [u.gen, u]));
+
+/** Owned-count unlock threshold for every v3 re-scaler (14 §4.3). */
+export const V3_RUN_UPGRADE_UNLOCK_OWNED = 150;
 
 // ---------------------------------------------------------------------------
 // Achievements (01 §6.1) — each grants +ACHIEVEMENT_BONUS global production, permanent.
@@ -447,6 +613,80 @@ export const ACHIEVEMENTS: readonly AchievementConfig[] = [
     description: 'Bring every Atelier upgrade to its maximum level.',
     condition: { kind: 'atelierComplete' },
   },
+  // --- v3 achievements (13 §5.1) — total 36 ---
+  {
+    id: 'aLongerRoad',
+    name: 'A Longer Road',
+    description: 'Buy your first tier-9 generator (a Saga Citadel).',
+    // Tier 9 = index 8 in GENERATOR_IDS (0-based); tierAtLeast is 1-based.
+    condition: { kind: 'anyGeneratorFromTier', tierAtLeast: 9 },
+  },
+  {
+    id: 'cosmologySection',
+    name: 'Cosmology Section',
+    description: 'Own at least one of every generator.',
+    condition: { kind: 'allGeneratorsV3' },
+  },
+  {
+    id: 'twoHundredVoices',
+    name: 'Two Hundred Voices',
+    description: 'Own 200 of a single generator.',
+    condition: { kind: 'anyGeneratorCount', count: 200 },
+  },
+  {
+    id: 'deepShelves',
+    name: 'The Deep Shelves',
+    description: 'Own 500 of a single generator.',
+    condition: { kind: 'anyGeneratorCount', count: 500 },
+  },
+  {
+    id: 'aNumberNeedsAName',
+    name: 'A Number Needs a Name',
+    description: 'Reach 1e15 total Inspiration in a single run.',
+    condition: { kind: 'runTotalEarned', amount: 1e15 },
+  },
+  {
+    id: 'beyondTheAlphabet',
+    name: 'Beyond the Alphabet',
+    description: 'Earn 1e21 total Inspiration (lifetime).',
+    condition: { kind: 'lifetimeInspirationAmount', amount: 1e21 },
+  },
+  {
+    id: 'masterOfTheWing',
+    name: 'Master of the Wing',
+    description: 'Bring The New Wing to level 3.',
+    condition: { kind: 'atelierLevel', upgrade: 'theNewWing', level: 3 },
+  },
+  {
+    id: 'aThousandFeathers',
+    name: 'A Thousand Feathers',
+    description: 'Earn 1,000 Golden Quills (lifetime).',
+    condition: { kind: 'lifetimeQuills', count: 1_000 },
+  },
+  {
+    id: 'marathonNovelist',
+    name: 'Marathon Novelist',
+    description: 'Publish 50 Tomes.',
+    condition: { kind: 'tomesPublished', count: 50 },
+  },
+  {
+    id: 'completeWorks',
+    name: 'The Complete Works',
+    description: 'Publish 200 Tomes.',
+    condition: { kind: 'tomesPublished', count: 200 },
+  },
+  {
+    id: 'onceUponAHundred',
+    name: 'Once Upon a Hundred',
+    description: 'Own 100 Once Upon a Time.',
+    condition: { kind: 'generatorCount', generator: 'onceUponATime', count: 100 },
+  },
+  {
+    id: 'nothingLeftUnwritten',
+    name: 'Nothing Left Unwritten',
+    description: 'Unlock every relic and max every Atelier upgrade — 100% meta.',
+    condition: { kind: 'metaComplete' },
+  },
 ];
 
 export const ACHIEVEMENT_IDS: readonly string[] = ACHIEVEMENTS.map((a) => a.id);
@@ -547,6 +787,45 @@ export const REVEAL_MILESTONES: readonly RevealMilestoneConfig[] = [
     description: 'The Hall of Fables awaits your name.',
     requirement: { kind: 'tomesPublished', count: 1 },
   },
+  // --- v3 reveal milestones (13 §5.2 / 14 §2) — one per new tier. Each fires
+  // once run totalEarned crosses the reveal AND The New Wing is at the matching
+  // level; the shop row itself is gated by isGeneratorVisibleInShop. ---
+  {
+    id: 'bannersOnTheHorizon',
+    name: 'Banners on the Horizon',
+    description: 'The Saga Citadel appears in the shop.',
+    requirement: { kind: 'totalEarnedAndWing', amount: 3e9, wing: 1 },
+  },
+  {
+    id: 'aDistantHarmony',
+    name: 'A Distant Harmony',
+    description: "The Narrators' Guild appears in the shop.",
+    requirement: { kind: 'totalEarnedAndWing', amount: 6.5e10, wing: 1 },
+  },
+  {
+    id: 'rumorsOfDivinity',
+    name: 'Rumors of Divinity',
+    description: 'The Pantheon Press appears in the shop.',
+    requirement: { kind: 'totalEarnedAndWing', amount: 1.5e12, wing: 2 },
+  },
+  {
+    id: 'rootsUnderTheFloorboards',
+    name: 'Roots Under the Floorboards',
+    description: 'The World-Tree Archive appears in the shop.',
+    requirement: { kind: 'totalEarnedAndWing', amount: 3.5e13, wing: 2 },
+  },
+  {
+    id: 'lightsBeyondTheHills',
+    name: 'Lights Beyond the Hills',
+    description: 'The Sleeping City appears in the shop.',
+    requirement: { kind: 'totalEarnedAndWing', amount: 8.5e14, wing: 3 },
+  },
+  {
+    id: 'theOldestSentence',
+    name: 'The Oldest Sentence',
+    description: 'Once Upon a Time appears in the shop.',
+    requirement: { kind: 'totalEarnedAndWing', amount: 2.1e16, wing: 3 },
+  },
 ];
 
 // ===========================================================================
@@ -644,6 +923,59 @@ export const ATELIER_UPGRADES: readonly AtelierUpgradeConfig[] = [
     costs: [10],
     levelDescriptions: ['Each Publish the Tome grants +1 bonus Golden Quill.'],
   },
+  // --- v3 Atelier upgrades (14 §6.1, costs FINAL; effects from 13 §4.1) ---
+  {
+    id: 'theNewWing',
+    name: 'The New Wing',
+    flavor: 'The architect insists the library always had this corridor. The corridor politely disagrees.',
+    costs: [25, 2_500, 60_000],
+    levelDescriptions: [
+      'Unlocks generators 9–10: the Saga Citadel and the Narrators’ Guild.',
+      'Unlocks generators 11–12: the Pantheon Press and the World-Tree Archive.',
+      'Unlocks generators 13–14: the Sleeping City and Once Upon a Time.',
+    ],
+  },
+  {
+    id: 'clockworkUnderstudy',
+    name: 'Clockwork Understudy',
+    flavor: 'It watches. It learns. It buys ravens at three in the morning.',
+    costs: [40],
+    levelDescriptions: [
+      'Auto-buys every generator (1% of your Inspiration, best payback first, 1/sec). Requires the Self-Writing Contract.',
+    ],
+  },
+  {
+    id: 'curatorsPatience',
+    name: "Curator's Patience",
+    flavor: 'She has waited centuries for a returning reader. What is a weekend?',
+    costs: [75],
+    levelDescriptions: ['Offline cap +24h (stacks to 48h) — a whole weekend counts.'],
+  },
+  {
+    id: 'perpetualManuscript',
+    name: 'Perpetual Manuscript',
+    flavor: 'Some books refuse to end. This one refuses to start over.',
+    costs: [120],
+    levelDescriptions: [
+      'All 10 v1 run upgrades survive each Publish (the 7 v3 re-scalers do not).',
+    ],
+  },
+  {
+    id: 'strengthOfTheStacks',
+    name: 'Strength of the Stacks',
+    flavor: 'The shelves lean in. The books push back.',
+    costs: [8_000],
+    levelDescriptions: [
+      'Quantity thresholds above 100 give ×2.5 instead of ×2 (and ×5 instead of ×4 at 500).',
+    ],
+  },
+  {
+    id: 'atlasOfUntoldLands',
+    name: 'Atlas of Untold Lands',
+    flavor: "Every blank spot on the map is a story you haven't gotten to yet.",
+    costs: [400_000],
+    levelDescriptions: ['Global production ×2, permanent.'],
+  },
 ];
 
 export const ATELIER_UPGRADE_IDS: readonly AtelierUpgradeId[] = ATELIER_UPGRADES.map(
@@ -673,6 +1005,22 @@ export const THUNDEROUS_APPLAUSE_PROD_SECONDS = 20;
 export const NIGHT_OWL_EXTRA_CAP_MS = 12 * 3_600_000; // 8h→20h; 12h→24h
 export const SECOND_BOOKMARK_KEPT: readonly number[] = [2, 4]; // cheapest by config cost
 export const EDITORS_DUE_BONUS_QUILLS = 1;
+
+// ---------------------------------------------------------------------------
+// v3 Atelier effect numbers (14 §6.1)
+// ---------------------------------------------------------------------------
+
+/** Curator's Patience: +24h offline cap (stacks with Night Owl → 48h). */
+export const CURATORS_PATIENCE_EXTRA_CAP_MS = 24 * 3_600_000;
+/** Atlas of Untold Lands: permanent ×2 global production. */
+export const ATLAS_GLOBAL_MULT = 2;
+/** Strength of the Stacks: the >100 quantity thresholds pay ×2.5 (and ×5 at 500). */
+export const STRENGTH_OF_STACKS = { thresholdMult: 2.5, finaleMult: 5 } as const;
+/** The 10 v1 run-upgrade ids kept by Perpetual Manuscript (the 7 v3 re-scalers
+ *  in V3_RUN_UPGRADE_IDS are deliberately excluded — 13 §2.4 / 14 §6.1). */
+export const PERPETUAL_MANUSCRIPT_KEPT_IDS: readonly RunUpgradeId[] = UPGRADES.filter(
+  (u) => u.id !== 'quillResonance' && !V3_RUN_UPGRADE_ID_SET.has(u.id),
+).map((u) => u.id as RunUpgradeId);
 
 // ===========================================================================
 // v2 — Relics (derived from tomesPublished, NEVER stored in the save; 11 §4)
@@ -707,6 +1055,36 @@ export const RELICS: readonly RelicConfig[] = [
     flavor: 'Someone, somewhere, stayed up all night reading you. They wrote to say so.',
     tomes: 30,
   },
+  // --- v3 relics (14 §6.2) — tomes 50/75/100/200, derived from tomesPublished ---
+  {
+    id: 'forewordByTheEditor',
+    name: 'Foreword by the Editor',
+    description:
+      "Start each run with 0.1% of the previous run's total Inspiration (capped at 1e18).",
+    flavor: 'The next book opens where the last one left off. The editor saw to it.',
+    tomes: 50,
+  },
+  {
+    id: 'pilgrimsPages',
+    name: "Pilgrims' Pages",
+    description: 'Story Fragments needed per Golden Quill: 5 → 3.',
+    flavor: 'Readers walk a long way to bring back pieces of stories. Loose pages, mostly.',
+    tomes: 75,
+  },
+  {
+    id: 'hundredthTelling',
+    name: 'The Hundredth Telling',
+    description: 'The unique per-generator bonuses trigger at 150 owned instead of 200.',
+    flavor: 'Tell a story a hundred times and it starts telling itself early.',
+    tomes: 100,
+  },
+  {
+    id: 'endlessShelf',
+    name: 'The Endless Shelf',
+    description: 'Bookshelf cap 25 → 100 counted fables (+2% each → max +200%).',
+    flavor: 'You built a shelf. The shelf, quietly, built another shelf.',
+    tomes: 200,
+  },
 ];
 
 export const RELIC_INDEX: Readonly<Record<RelicId, RelicConfig>> = Object.fromEntries(
@@ -718,6 +1096,20 @@ export const DOG_EARED_PAGE_START_INSPIRATION = 300;
 export const STANDING_OVATION_DURATION_MULT = 2;
 export const INK_REMEMBERS_RATE = 0.01; // ×(1 + rate × tomesPublished), only once unlocked
 export const READERS_LETTER_OFFLINE_BONUS = 0.1; // 0.5→0.6; 0.75→0.85
+
+// ---------------------------------------------------------------------------
+// v3 relic effect numbers (14 §6.2)
+// ---------------------------------------------------------------------------
+
+/** Foreword by the Editor: start each run with this fraction of the PREVIOUS
+ *  run's totalEarned, capped. Enters inspiration + totalEarned + seededInspiration
+ *  (so the prestige formula, which runs on te − seeded, can't be farmed). */
+export const FOREWORD_START_FRACTION = 0.001; // 0.1%
+export const FOREWORD_CAP = 1e18;
+/** Pilgrims' Pages: Story Fragments per Golden Quill drops 5 → 3. */
+export const PILGRIMS_PAGES_FRAGMENTS_PER_QUILL = 3;
+/** The Endless Shelf: Bookshelf counted cap 25 → 100. */
+export const ENDLESS_SHELF_BOOKSHELF_CAP = 100;
 
 // ===========================================================================
 // v2 — Stray Spark (11 §5; inkBurst 45s is a [DECIZIE DE CALIBRARE], not 900s)
@@ -780,3 +1172,89 @@ export const FABLE_VERB_PHRASES: readonly string[] = [
   'Argued with the Moon', 'Sold Silence', 'Misplaced Thursday',
   'Taught the Rain to Read', 'Slept Through the Ending',
 ];
+
+// ===========================================================================
+// v3 — Deep Shelves cost taper, extended quantity milestones, unique bonuses,
+// segmented prestige (14 §3 / §4 / §5).
+// ===========================================================================
+
+// --- Deep Shelves: relative growth taper on bands of 100 units (14 §3) ---
+// g_b = max(1 + (growth − 1) × taperRel[b], floor). Units 1–101 keep the EXACT
+// v1/v2 price (band 0 taperRel = 1.0 → g0 unchanged). generators.ts implements
+// costOf/bulkCost on these bands (a single ceil on the total for bulk).
+export const DEEP_SHELVES = {
+  bandSize: 100,
+  taperRel: [1.0, 0.8, 0.6, 0.45] as readonly number[], // 1–100 / 101–200 / 201–300 / 301+
+  floor: 1.04,
+} as const;
+
+// --- Extended quantity milestones (14 §4.1), on TOP of the v1 25/50/100 ---
+// 150 ×2, 300 ×2, 400 ×2, 500 ×4; 200 = a UNIQUE per-generator bonus (below).
+export const QTY_THRESHOLDS_V3: readonly number[] = [150, 300, 400, 500];
+/** The ×4 "grand finale" multiplier at 500 (×5 with Strength of the Stacks). */
+export const QTY_FINALE_THRESHOLD = 500;
+export const QTY_FINALE_MULT = 4;
+/** The step multiplier at 150/300/400 (×2.5 with Strength of the Stacks). */
+export const QTY_STEP_MULT = 2;
+/** The unique-bonus threshold: 200 owned (150 with The Hundredth Telling relic). */
+export const UNIQUE_THRESHOLD = 200;
+export const UNIQUE_THRESHOLD_TELLING = 150;
+
+// --- The 14 unique bonuses at the UNIQUE_THRESHOLD (14 §4.2) ---
+// Run-scoped: a bonus is "active" only while that generator's owned count is at
+// the threshold in the CURRENT run. Each field is consumed by exactly one
+// system (selectors / buff / spark / offline / prestige) — see the call sites.
+export interface UniqueBonusConfig {
+  clickMult?: number;
+  inkEchoRate?: number;
+  costMult?: number;
+  buffDurationBonusSec?: number;
+  tiers1to4Mult?: number;
+  offlineEffBonus?: number;
+  buffProdMult?: number;
+  buffCooldownReductionSec?: number;
+  cooldownFloorSec?: number;
+  sparkIntervalMult?: number;
+  achievementBonusMult?: number;
+  bonusQuillsPerPublish?: number;
+  extraOfflineCapMs?: number;
+  sparkRewardMult?: number;
+  globalMult?: number;
+}
+
+export const UNIQUE_BONUSES: Readonly<Partial<Record<GeneratorId, UniqueBonusConfig>>> = {
+  wanderingMuse: { clickMult: 2 },
+  inkSprite: { inkEchoRate: 0.02 }, // 0.01 → 0.02
+  talkingRaven: { costMult: 0.97 }, // multiplicative with Patron's Favor
+  enchantedQuill: { buffDurationBonusSec: 5 },
+  storyLoom: { tiers1to4Mult: 3 },
+  dreamLibrary: { offlineEffBonus: 0.05 }, // global efficiency cap stays 0.90
+  fableForge: { buffProdMult: 2.5 }, // 2 → 2.5
+  mythEngine: { buffCooldownReductionSec: 10, cooldownFloorSec: 45 },
+  sagaCitadel: { sparkIntervalMult: 0.75 },
+  narratorsGuild: { achievementBonusMult: 1.5 },
+  pantheonPress: { bonusQuillsPerPublish: 1 },
+  worldTreeArchive: { extraOfflineCapMs: 12 * 3_600_000 },
+  sleepingCity: { sparkRewardMult: 2 },
+  onceUponATime: { globalMult: 2 },
+};
+
+/** Global efficiency cap (14 §4.2 — "The Library Never Closes" caps at 0.90). */
+export const OFFLINE_EFFICIENCY_CAP = 0.9;
+
+// --- Segmented prestige (14 §5.1, FINAL) ---
+// quills = f(totalEarnedThisRun − run.seededInspiration), where f is:
+//   te ≤ 1e9      : floor(sqrt(te / 1e5))                     (EXACT v1/v2)
+//   1e9 < te ≤ 1e15: floor(100  × (te / 1e9)^(1/6)  + 1e-9)
+//   te > 1e15     : floor(1000 × (te / 1e15)^(1/12) + 1e-9)
+// The +1e-9 guard applies ONLY to segments 2–3 (never segment 1): pow(1e6,1/6)
+// = 9.999999… in IEEE-754, so without it q(1e15) = 999 not 1000.
+export const PRESTIGE_V3 = {
+  knee1: 1e9,
+  coef2: 100,
+  exp2: 1 / 6,
+  knee2: 1e15,
+  coef3: 100 * Math.pow(1e6, 1 / 6), // = 1000 exactly
+  exp3: 1 / 12,
+  epsilon: 1e-9,
+} as const;

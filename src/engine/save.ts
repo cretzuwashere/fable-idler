@@ -37,7 +37,7 @@ import type {
 
 export const SAVE_KEY = 'fable-idler-save-v1';
 export const SAVE_BACKUP_KEY = 'fable-idler-save-v1:corrupt';
-export const CURRENT_SAVE_VERSION = 2;
+export const CURRENT_SAVE_VERSION = 3;
 
 /** The legacy v1 payload shape — kept for documentation/tests of the migration. */
 export interface SaveDataV1 {
@@ -47,8 +47,16 @@ export interface SaveDataV1 {
   meta: unknown;
 }
 
+/** The v2 payload shape — kept for documentation/tests of the v2→v3 migration. */
 export interface SaveDataV2 {
   version: 2;
+  savedAt: number;
+  run: unknown;
+  meta: unknown;
+}
+
+export interface SaveDataV3 {
+  version: 3;
   savedAt: number;
   run: RunState;
   meta: MetaState;
@@ -133,6 +141,26 @@ export const MIGRATIONS: Record<number, Migration> = {
           quillsFromFragments: 0,
           fastestPublishMs: null,
         },
+      },
+    };
+  },
+  // MIGRATIONS[2]: the real v2→v3 migration — additive per 14 §8. The generators
+  // 9–14 start at 0, the 7 v3 re-scalers uncbought (run.upgrades untouched), the
+  // 6 new Atelier upgrades absent (meta.atelier untouched), achievements 25–36
+  // locked, and the ONE new run field is set:
+  //   run.seededInspiration = 0 — the run in progress at migration never had a
+  //   seed larger than Dog-Eared 300, and q(300) = 0, so this is numerically a
+  //   no-op. Everything derived (qty thresholds, unique bonuses, taper, relics)
+  //   needs no storage. The v3 sanitizers below then validate everything.
+  2: (old: unknown): unknown => {
+    if (!isRecord(old)) return old;
+    const run = isRecord(old.run) ? old.run : {};
+    return {
+      ...old,
+      version: 3,
+      run: {
+        ...run,
+        seededInspiration: 0,
       },
     };
   },
@@ -229,6 +257,13 @@ function sanitizeRun(x: unknown, savedAt: number): RunState | null {
   run.sparkBuff = sanitizeSparkBuff(x.sparkBuff, savedAt);
   run.buffActivationsThisRun = nonNegativeInt(x.buffActivationsThisRun, 0);
   run.lastAutoBuyAt = Math.min(nonNegativeNumber(x.lastAutoBuyAt, 0) ?? 0, savedAt);
+  // --- v3 field — seed capital of the run, clamped to [0, totalEarned] (a seed
+  // larger than what was earned would let the anti-exploit net-seed subtraction
+  // hide legitimate earnings, or go negative). ---
+  run.seededInspiration = Math.min(
+    nonNegativeNumber(x.seededInspiration, 0) ?? 0,
+    run.totalEarned,
+  );
   return run;
 }
 
@@ -368,7 +403,7 @@ function sanitizeMeta(x: unknown): MetaState | null {
 }
 
 /** Shape-validate an already-parsed (and migrated) payload. Null = invalid. */
-export function sanitizeSaveData(data: unknown): SaveDataV2 | null {
+export function sanitizeSaveData(data: unknown): SaveDataV3 | null {
   if (!isRecord(data)) return null;
   if (data.version !== CURRENT_SAVE_VERSION) return null;
   if (!isFiniteNumber(data.savedAt) || data.savedAt < 0) return null;
@@ -376,7 +411,7 @@ export function sanitizeSaveData(data: unknown): SaveDataV2 | null {
   if (!run) return null;
   const meta = sanitizeMeta(data.meta);
   if (!meta) return null;
-  return { version: 2, savedAt: data.savedAt, run, meta };
+  return { version: CURRENT_SAVE_VERSION, savedAt: data.savedAt, run, meta };
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +444,7 @@ export function applyMigrations(
 // ---------------------------------------------------------------------------
 
 export function serializeState(state: GameState, savedAt: number): string {
-  const data: SaveDataV2 = {
+  const data: SaveDataV3 = {
     version: CURRENT_SAVE_VERSION,
     savedAt,
     run: state.run,
@@ -422,7 +457,7 @@ export function serializeState(state: GameState, savedAt: number): string {
 export function parseSave(
   json: string,
   migrations: Record<number, Migration> = MIGRATIONS,
-): SaveDataV2 | null {
+): SaveDataV3 | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
@@ -437,7 +472,7 @@ export interface LoadedSave {
   savedAt: number;
 }
 
-function toLoadedSave(data: SaveDataV2): LoadedSave {
+function toLoadedSave(data: SaveDataV3): LoadedSave {
   return {
     state: { run: data.run, meta: data.meta, lastTickAt: data.savedAt },
     savedAt: data.savedAt,

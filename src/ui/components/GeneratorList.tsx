@@ -1,10 +1,12 @@
-// GeneratorList + GeneratorRow (04 §4.6).
+// GeneratorList + GeneratorRow (04 §4.6, extended for v3 in 13 §2).
 // Buy ×1/×10/×Max segmented toggle (persisted via setSettings), one row per
-// revealed generator, plus a "? ? ?" teaser row for the next unrevealed one.
+// revealed generator, plus a "? ? ?" teaser row for the next unrevealed base
+// tier (never for a Wing-gated or Blueprint-gated tier — those are surprises).
 // Row states: affordable (green button + pulse on the expensive→affordable
 // transition, cleared on hover) / expensive (disabled, ETA from /sec) /
-// just-bought (300ms green flash) / milestone badge ×2/×4/×8 (badgePop) with
-// the "1 more → ×2!" hint at 24/49/99 / newly-revealed (revealIn).
+// just-bought (300ms green flash) / milestone badge ×N (badgePop) + the unique
+// violet/gold badge at 200 with an effect tooltip / the "1 more → …" hint at
+// every threshold-1 (24/49/99/149/199/299/399/499) / newly-revealed (revealIn).
 
 import { memo, useEffect, useRef, useState } from 'react';
 import {
@@ -16,21 +18,42 @@ import {
   GENERATORS,
   generatorProduction,
   isGeneratorVisibleInShop,
+  isUniqueBonusActive,
   maxAffordable,
   perSecond,
-  QTY_MILESTONE_MULT,
+  QTY_FINALE_MULT,
+  QTY_FINALE_THRESHOLD,
   QTY_MILESTONE_THRESHOLDS,
+  QTY_STEP_MULT,
+  QTY_THRESHOLDS_V3,
   qtyMilestoneMultiplier,
+  uniqueThreshold,
 } from '../../engine';
 import type { BuyQty, GameState, GeneratorConfig } from '../../engine';
 import { formatEta } from '../format';
 import { useDispatch } from '../hooks/useGameStore';
 import { GENERATOR_ICONS, ICON } from '../icons';
+import { UNIQUE_BONUS_INFO } from '../unique-bonuses-info';
 import { IconCoin } from './IconCoin';
 import { Tooltip } from './Tooltip';
 import './GeneratorList.css';
 
 const BUY_QTYS: readonly BuyQty[] = [1, 10, 'max'];
+
+/** Every MULTIPLIER threshold, ascending — v1 25/50/100 (×2) plus v3 150/300/
+ *  400 (×2) and 500 (×4). The unique-bonus threshold (200) is NOT here: it is a
+ *  separate special badge with its own copy. Derived from config so adding a
+ *  threshold never needs a UI edit (13 §2.1). */
+const MULT_THRESHOLDS: readonly number[] = [...QTY_MILESTONE_THRESHOLDS, ...QTY_THRESHOLDS_V3].sort(
+  (a, b) => a - b,
+);
+
+/** The base step multiplier label at a threshold (500 → ×4, else ×2). Strength
+ *  of the Stacks scaling is folded into qtyMilestoneMultiplier already; this is
+ *  only the "1 more → ×N" hint and badge-tooltip copy, which quote the step. */
+function stepMultLabel(threshold: number): string {
+  return `×${threshold === QTY_FINALE_THRESHOLD ? QTY_FINALE_MULT : QTY_STEP_MULT}`;
+}
 
 function qtyLabel(qty: BuyQty): string {
   return qty === 'max' ? '×Max' : `×${qty}`;
@@ -40,15 +63,21 @@ export function GeneratorList({ state }: { state: GameState }) {
   const dispatch = useDispatch();
   const buyQty: BuyQty = state.meta.settings.buyQty ?? 1;
 
-  // v2: isGeneratorVisibleInShop is MANDATORY here (05 Engine v2) — without
-  // the Blueprint of Myths the mythEngine row must not exist AT ALL, not even
-  // as the "? ? ?" teaser (09 §1.3: it is the Atelier's surprise).
+  // v2/v3: isGeneratorVisibleInShop is MANDATORY here (05 Engine v2/v3). A tier
+  // whose gate is not yet met must not exist AT ALL — not even as the "? ? ?"
+  // teaser. That covers BOTH the Blueprint of Myths (mythEngine) and every New
+  // Wing level (tiers 9–14, the `wing` field): each is the Atelier's surprise,
+  // revealed only when its Atelier gate is purchased (09 §1.3 / 13 §1.1). So the
+  // teaser candidate is the next generator that is (a) not yet shop-visible and
+  // (b) NOT held back purely by an unmet Atelier gate.
   const revealed = GENERATORS.filter((g) => isGeneratorVisibleInShop(state, g.id));
   const hasBlueprint = atelierLevel(state, 'blueprintOfMyths') >= 1;
-  const nextHidden = GENERATORS.find(
-    (g) =>
-      !isGeneratorVisibleInShop(state, g.id) && (g.id !== 'mythEngine' || hasBlueprint),
-  );
+  const nextHidden = GENERATORS.find((g) => {
+    if (isGeneratorVisibleInShop(state, g.id)) return false;
+    if (g.id === 'mythEngine' && !hasBlueprint) return false; // gated by Blueprint
+    if (g.wing !== undefined && atelierLevel(state, 'theNewWing') < g.wing) return false; // gated by Wing
+    return true;
+  });
 
   return (
     <section className="generator-list" aria-label="Generators">
@@ -100,9 +129,17 @@ const GeneratorRow = memo(function GeneratorRow({ state, config, buyQty }: RowPr
   const total = generatorProduction(state, id);
   const each = owned > 0 ? total / owned : config.baseProd;
 
-  // Quantity milestone badge ×2/×4/×8 + "1 more → ×2!" hint
+  // Quantity milestone badge: the cumulative ×N (v1 25/50/100 and v3 150/300/
+  // 400/500, incl. Strength of the Stacks), plus a "1 more → …" hint whenever
+  // the NEXT unit crosses any threshold — a multiplier step OR the unique bonus.
   const mult = qtyMilestoneMultiplier(state, id);
-  const oneMore = QTY_MILESTONE_THRESHOLDS.includes(owned + 1);
+  const highestMult = [...MULT_THRESHOLDS].reverse().find((t) => owned >= t);
+  const uniqueActive = isUniqueBonusActive(state, id);
+  const bonusInfo = UNIQUE_BONUS_INFO[id];
+  const uThreshold = uniqueThreshold(state);
+  // The next threshold the following purchase would cross (mult step or unique).
+  const nextMultStep = MULT_THRESHOLDS.includes(owned + 1) ? owned + 1 : undefined;
+  const crossingUnique = owned + 1 === uThreshold;
 
   // just-bought flash (300ms)
   const prevOwned = useRef(owned);
@@ -163,14 +200,32 @@ const GeneratorRow = memo(function GeneratorRow({ state, config, buyQty }: RowPr
                 <>
                   <span className="tooltip-title">Milestone bonus</span>
                   <span className="tooltip-dim">
-                    Production ×{mult} for owning {[...QTY_MILESTONE_THRESHOLDS].reverse().find((t) => owned >= t)}+ of
-                    this generator.
+                    Production ×{mult} for owning {highestMult}+ of this generator.
                   </span>
                 </>
               }
             >
               <span key={mult} className="generator-row__badge anim-badge-pop num" tabIndex={0}>
-                ×{mult}
+                ×{formatNumber(mult)}
+              </span>
+            </Tooltip>
+          )}
+          {uniqueActive && bonusInfo && (
+            <Tooltip
+              content={
+                <>
+                  <span className="tooltip-title">{bonusInfo.name}</span>
+                  <span className="tooltip-dim">{bonusInfo.effect}</span>
+                  <span className="tooltip-dim">Unique bonus — {uThreshold} owned.</span>
+                </>
+              }
+            >
+              <span
+                className="generator-row__badge generator-row__badge--unique anim-badge-pop"
+                tabIndex={0}
+                aria-label={`Unique bonus: ${bonusInfo.name}`}
+              >
+                ✦ {bonusInfo.name}
               </span>
             </Tooltip>
           )}
@@ -178,11 +233,14 @@ const GeneratorRow = memo(function GeneratorRow({ state, config, buyQty }: RowPr
         <div className="generator-row__prod num">
           {formatRate(each)}/sec each{owned > 0 && <> · {formatRate(total)}/sec total</>}
         </div>
-        {oneMore && (
-          <div className="generator-row__hint">
-            1 more → ×{QTY_MILESTONE_MULT}
-            {'!'}
+        {crossingUnique && bonusInfo ? (
+          <div className="generator-row__hint generator-row__hint--unique">
+            1 more → <strong>{bonusInfo.name}</strong>!
           </div>
+        ) : (
+          nextMultStep !== undefined && (
+            <div className="generator-row__hint">1 more → {stepMultLabel(nextMultStep)}!</div>
+          )
         )}
       </div>
       <div className="generator-row__buy">

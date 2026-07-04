@@ -1,6 +1,7 @@
 // AchievementGrid (04 §4.8) — grid of 56px squares. Locked: "?" silhouette with
 // the condition visible in a tooltip ("Not yet written."). Unlocked: 🏆 with a
-// warm gold gradient + tooltip (name, condition, bonus). Header: "9/14 · +9%".
+// warm gold gradient + tooltip (name, condition, bonus). Header count is fully
+// dynamic ("N/{ACHIEVEMENTS.length} · +M%") — 36 achievements in v3, 24 in v2.
 // Root carries data-testid="tab-achievements" — the E2E contract point that
 // "the Achievements tab appears after the first achievement" on all layouts.
 

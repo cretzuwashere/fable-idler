@@ -2,8 +2,8 @@
 // Achievements are PERMANENT (meta state): they persist through prestige.
 // Each grants +1% global production (+2% with Bound Anthology) via selectors.ts.
 
-import { ACHIEVEMENTS, WELL_ROUNDED_GENERATOR_IDS } from './config';
-import { hasAnyAtelierUpgrade, isAtelierComplete } from './atelier';
+import { ACHIEVEMENTS, GENERATOR_IDS, RELICS, WELL_ROUNDED_GENERATOR_IDS } from './config';
+import { atelierLevel, hasAnyAtelierUpgrade, hasRelic, isAtelierComplete } from './atelier';
 import { uniqueFableCount } from './fables';
 import { totalGeneratorCount } from './generators';
 import { perSecond } from './selectors';
@@ -58,6 +58,29 @@ export function isAchievementConditionMet(
     case 'leaderboardJoined':
       return typeof state.meta.settings.leaderboard?.token === 'string' &&
         state.meta.settings.leaderboard.token.length > 0;
+    // --- v3 (13 §5.1) ---
+    case 'anyGeneratorFromTier': {
+      // tierAtLeast is 1-based; GENERATOR_IDS is tier-ordered.
+      for (let tier = condition.tierAtLeast; tier <= GENERATOR_IDS.length; tier++) {
+        if (state.run.generators[GENERATOR_IDS[tier - 1]] >= 1) return true;
+      }
+      return false;
+    }
+    case 'allGeneratorsV3':
+      return GENERATOR_IDS.every((id) => state.run.generators[id] >= 1);
+    case 'anyGeneratorCount':
+      return GENERATOR_IDS.some((id) => state.run.generators[id] >= condition.count);
+    case 'runTotalEarned':
+      return state.run.totalEarned >= condition.amount;
+    case 'lifetimeInspirationAmount':
+      return state.meta.stats.lifetimeInspiration >= condition.amount;
+    case 'atelierLevel':
+      return atelierLevel(state, condition.upgrade) >= condition.level;
+    case 'lifetimeQuills':
+      return state.meta.stats.lifetimeQuillsEarned >= condition.count;
+    case 'metaComplete':
+      // 100% meta: every relic unlocked AND every Atelier upgrade maxed.
+      return RELICS.every((r) => hasRelic(state, r.id)) && isAtelierComplete(state);
   }
 }
 

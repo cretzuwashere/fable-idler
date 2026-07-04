@@ -119,6 +119,31 @@
   padding: 1px 8px;
 }
 
+/* v3 (13 §2.3): the UNIQUE bonus badge at 200 owned — a distinct violet/gold
+   mix so it never reads as "just another ×2". Violet fill (the meta family),
+   gold-bright text + gold-deep border, with a soft violet glow. */
+.generator-row__badge--unique {
+  color: var(--gold-bright);
+  background: linear-gradient(135deg, var(--quill-deep), var(--quill));
+  border: 1px solid var(--gold-deep);
+  box-shadow: 0 0 0 1px rgba(180, 140, 228, 0.35), 0 0 10px rgba(180, 140, 228, 0.4);
+  letter-spacing: 0.01em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* v3: the unique-bonus hint ("1 more → «Bonus name»!") tinted violet, not gold. */
+.generator-row__hint--unique {
+  color: var(--quill);
+}
+
+.generator-row__hint--unique strong {
+  color: var(--gold-bright);
+  font-weight: 700;
+}
+
 .generator-row__prod {
   font-size: 13px;
   color: var(--parchment-dim);

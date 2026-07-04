@@ -1,5 +1,89 @@
 # 05 — Implementation Log
 
+## Agent UI v3 — Integrarea vizuală a alungirii (2026-07-04)
+
+### Status: COMPLET și VERDE (validat prin Docker; host fără Node)
+- `docker compose run --rm test-unit sh -c "npm install --no-audit --no-fund && npx tsc --noEmit && npx vitest run"` → **`Test Files 24 passed (24) / Tests 399 passed (399)`**, `tsc --noEmit` zero erori. Niciun test atins de acest agent (UI-only); cele 399 rămân verzi.
+- `npm run build` (prin Docker) → verde: `dist/assets/index-CDwD3XIX.js` **271.82 kB** (gzip 85.24) + `index-DxlK-rIX.css` **52.49 kB** (gzip 10.12). (era 254.86/52.06 în v2 — +17 kB JS din config-ul v3 deja prezent + textele bonusurilor unice).
+- `docker compose up --build -d web api` → ambele healthy; **pagina 200 + `/api/health` 200** prin nginx; bundle-ul servit = `index-CDwD3XIX.js` (build-ul nou). **web+api lăsate PORNITE.**
+- **Smoke Playwright one-off** (scripturi în scratchpad, NU în `tests/`, imaginea pin `v1.49.1-noble`, pe `http://web:80/?test=1`, joined pe `fableidler_default`): **13/13 CHECKS PASSED** — prestige→112 🪶, New Wing L1 (25 🪶) prin UI, **Saga Citadel apare în shop** (era wing-gated), teaser-ul rămâne anonim (fără scurgere de tier wing-2+), badge ×N la 25+, **badge UNIC violet/gold la 200** (`✦ The Garrison Sallies Forth` + fundal gradient), New Wing L3, **13 rânduri de generatori vizibile**, **zero scroll orizontal** (scrollW=clientW=1280), zero erori de consolă ale aplicației. Screenshot desktop citit vizual: layout curat, badge-urile (gold ×32 + violet `✦ A Hundred Whispers` pe Muse) se disting clar, numerele mari formatate (126Qa/1.29Qi), lista scroll-uiește intern.
+
+### Contextul: UI-ul era deja masiv data-driven
+Cardurile 9–14 (`GeneratorList` pe `isGeneratorVisibleInShop`), cele 7 re-scalere de rundă (`UpgradeList` pe `UPGRADES` + `isUpgradeUnlocked`, unlock `generatorCount≥150`), upgrade-urile de Atelier v3 + pips New Wing L1–L3 + confirmarea ≥10🪶 + cele 8 relics (`AtelierPanel` pe `ATELIER_UPGRADES`/`RELICS`), header-ul „N/36" achievements (`AchievementGrid` pe `ACHIEVEMENTS.length`), preview-ul de prestige (net-seed via `prestigePreview`), iconurile noi (`icons.ts`, puse deja de Engine v3) — TOATE mergeau prin config, fără modificare. Costurile mari (2500/8000/60000/400000 🪶 la Atelier, 5e10–2e14 la re-scalere, 6e9–5.3e20 la generatori) se formatează corect prin `formatNumber` existent.
+
+### Ce am schimbat (fișiere — toate în `src/ui/`)
+- **Nou: `src/ui/unique-bonuses-info.ts`** — date de PREZENTARE (nume + descriere de o frază) pentru cele 14 bonusuri unice la 200, cheiate pe `GeneratorId`. Engine-ul exportă DOAR configul numeric (`UNIQUE_BONUSES`) — numele/descrierile (13 §2.3) sunt strict UI. Sursă unică pentru GeneratorList, MilestoneTracker și toast-ul din App.
+- **`components/GeneratorList.tsx` (+ `.css`):**
+  1. **Fix (bug de teaser wing-gated):** `nextHidden` excludea doar `mythEngine` fără Blueprint; acum exclude ȘI orice generator wing-gated (`g.wing !== undefined && atelierLevel(theNewWing) < g.wing`). Fără fix, cu tier 8 deținut și fără New Wing, se randa un rând „? ? ?" care expunea `sagaCitadel.baseCost` (6e9) — încălca invarianta „niciun teaser pentru tier-uri gate-uite, ca la mythEngine" (13 §1.1/§0.2). Verificat în smoke.
+  2. **Badge de prag generalizat:** `mult` (din `qtyMilestoneMultiplier`, care include deja pragurile v3 + Strength of the Stacks) afișat prin `formatNumber(mult)` (×256 etc. nu sparg pill-ul); tooltip-ul folosește setul combinat `MULT_THRESHOLDS = [...QTY_MILESTONE_THRESHOLDS, ...QTY_THRESHOLDS_V3]` (derivat din config), nu doar 25/50/100.
+  3. **Badge UNIC la 200 (nou):** când `isUniqueBonusActive(state, id)`, un al doilea badge `generator-row__badge--unique` (fundal violet `--quill-deep→--quill`, text `--gold-bright`, bordură `--gold-deep`, glow violet — mixul violet/gold cerut) cu `✦ «nume»` + tooltip (nume + efect din `UNIQUE_BONUS_INFO` + „Unique bonus — N owned"). Pragul afișat = `uniqueThreshold(state)` (200, sau 150 cu The Hundredth Telling).
+  4. **Hint „1 more →" generalizat:** la orice `owned+1` care traversează un prag de multiplicator (`×2`/`×4` prin `stepMultLabel`) SAU pragul unic (`1 more → «Bonus name»!`, tint violet). Înlocuiește hint-ul hardcodat pe `QTY_MILESTONE_MULT`.
+- **`components/MilestoneTracker.tsx`:** pragurile de cantitate urmăresc acum setul complet (v1 25/50/100 + unic 200 + v3 150/300/400/500, derivat din config), cu etichetă corectă per prag (`×2`/`×4`/`«nume bonus unic»` via `thresholdLabel`). Reveal-urile v3 (`kind:'totalEarnedAndWing'`) intră în tracker DOAR când New Wing e deja la nivelul cerut (`atelierLevel(theNewWing) >= wing`) — atunci gate-ul rămas e pur `totalEarned`, deci o bară de progres validă; înainte de wing, gate-ul e o achiziție de Atelier (afișată acolo), nu un obiectiv de producție.
+- **`App.tsx`:** toast-ul de prag de cantitate nu mai e hardcodat „×2 / production doubles". Acum: la pragul unic (200/150) → „«Gen»: «Bonus name»" + efectul; la 500 → „×4 … a grand finale"; altfel → „×2 … production doubles". Folosește `uniqueThreshold(store.getState())` + `UNIQUE_BONUS_INFO`.
+- **`components/BookshelfPanel.tsx` (fix de sub-raportare):** header-ul folosea `BOOKSHELF.countedCap` (25) fix pentru contor ȘI procent; cu relicva **The Endless Shelf** (tomes 200) engine-ul (`bookshelfMultiplier`) ridică plafonul la 100 (+200%), dar UI-ul ar fi arătat „25/25 … (+50%)" mincinos. Acum plafonul e `hasRelic(state,'endlessShelf') ? ENDLESS_SHELF_BOOKSHELF_CAP : BOOKSHELF.countedCap` — aceeași regulă ca engine-ul.
+- **Comentarii stale actualizate:** `AchievementGrid.tsx` („9/14" → dinamic N/36), `MilestoneTracker.tsx` (headerul de doc). Zero cifre hardcodate de logică găsite în `src/ui` (grep `\b(14|25|50|100|150|200|300|400|500)\b` pe `.tsx` → doar comentarii + `*100` procentuale; niciun `slice(0,8)`/`.length===8`/count de generatori hardcodat).
+
+### Hardcodări pe „14"/praguri găsite și reparate
+1. **Teaser-ul wing-gated în GeneratorList** (descris mai sus) — singura hardcodare de logică: gate-ul special acoperea doar `mythEngine`, nu și cele 6 tier-uri de New Wing. Reparat derivând din `g.wing` + `atelierLevel(theNewWing)`.
+2. **Plafonul Bookshelf** în BookshelfPanel — constanta 25 în loc de plafonul dinamic (Endless Shelf → 100). Reparat prin `hasRelic`.
+3. Restul „hardcodărilor" erau doar comentarii (AchievementGrid „9/14", MilestoneTracker „25/50/100") — actualizate; codul era deja dinamic.
+
+### Abateri / decizii (cu motiv)
+1. **`unique-bonuses-info.ts` în `src/ui`, nu în engine:** engine-ul (contract) ține DOAR numerele bonusurilor unice; numele + descrierile sunt copy de prezentare (13 §2.3), deci UI-only — la fel ca `ATELIER_ICONS`/`RELIC_ICONS`. Nicio modificare la `src/engine`, config sau `tests`.
+2. **Reveal-urile v3 în MilestoneTracker doar post-wing:** un reveal `totalEarnedAndWing` fără wing-ul deținut nu e un obiectiv de producție (e o achiziție de Atelier). L-aș fi putut afișa cu bară „blocată", dar ar fi confuz (bara ar sări la 100% și tot ar rămâne blocat) — mai curat e să apară ca obiectiv de producție doar când wing-ul e cumpărat. Atelier-ul afișează deja progresul spre wing (mitigarea „next goal" din 14 §7.1(b)).
+3. **Badge ×N prin `formatNumber(mult)`:** la 500 owned cu Strength of the Stacks `mult` ajunge ×625; `formatNumber` îl ține în sufixe, pill-ul are `overflow:hidden`/`text-overflow:ellipsis` pe badge-ul unic (numele lung) ca să nu spargă rândul.
+
+### Fișiere modificate (absolute)
+Noi: `C:\Projects\Games\Fable Idler\src\ui\unique-bonuses-info.ts`. Modificate: `src\ui\components\GeneratorList.tsx`, `GeneratorList.css`, `MilestoneTracker.tsx`, `BookshelfPanel.tsx`, `AchievementGrid.tsx`, `src\ui\App.tsx`. Log: acest fișier. INTERZIS respectat: zero atingeri în `src/engine`, config-uri, `tests/**`, `server/`.
+
+---
+
+## Agent Engine v3 — Alungirea (generatori 9–14, praguri adânci, prestige segmentat) (2026-07-04)
+
+### Status: COMPLET și VERDE
+- `docker compose run --rm test-unit sh -c "npm install --no-audit --no-fund && npx tsc --noEmit && npx vitest run"` → **24 fișiere / 399 teste trecute** (380 unit + 19 server; era 297 în v2 → **+102 unit**). TypeScript strict: zero erori.
+- Toate testele v1/v2 rămân verzi; actualizările la teste existente (5 fișiere) sunt DOAR unde v3 schimbă legitim, justificate mai jos.
+- Comanda finală (copiată): `Test Files 24 passed (24) / Tests 399 passed (399)`.
+
+### Cifrele: 14 (economia finală) au avut prioritate peste 13 unde diferă (baseProd 9–14, growth 13–14 1.11/1.12, New Wing 25/2500/60000, Atlas 400000, Foreword cap 1e18, re-scalere dublate, quills pe te NET de seededInspiration, exponenți prestige 1/6 și 1/12).
+
+### Fișiere modificate (engine)
+- **Noi:** `src/engine/unique-bonuses.ts` (cele 14 bonusuri unice la 200/150 owned — sursă unică de adevăr pentru "e activ bonusul X"; ciclu-free: importă doar config + atelier).
+- **Modificate:** `config.ts` (generatori 9–14, 7 re-scalere, DEEP_SHELVES, praguri v3, UNIQUE_BONUSES, PRESTIGE_V3, ATELIER v3, RELICS v3, achievements 25–36, reveal milestones v3, WELL_ROUNDED restrâns la cei 7 de bază), `types.ts` (id-uri noi + `run.seededInspiration` + `wing` pe GeneratorConfig + condiții achievement/milestone noi), `state.ts` (seededInspiration=0), `generators.ts` (Deep Shelves band-taper în costOf/bulkCost/maxAffordable + `bandGrowth` + `bestPaybackGenerator`), `selectors.ts` (qty v3 + Stacks, re-scaler step 2, Warp&Weft step 3¾, Atlas/OUAT `v3GlobalMultiplier`, Everyone's Biographer, Endless Shelf cap, Curator/DeepRoots/Library offline, Garrison spark, whispers/ink click, `buffProdMult` White-Hot, wing gate în isGeneratorVisibleInShop), `atelier.ts` (bookmarkedUpgrades cu Perpetual Manuscript, `newWingLevel`, `hasClockworkUnderstudy`), `buff.ts` (Quills Write Back +5s, Perpetual Myth −10s/floor 45s), `spark.ts` (City Dreams ×2 → `sparkRewardMult`, Pilgrims' Pages → `fragmentsPerQuill`), `prestige.ts` (formula segmentată + `prestigeNetTotalEarned` + Divine Royalties + `seedInspirationForNextRun` + set seededInspiration la publish), `milestones.ts` (praguri badge extinse + `totalEarnedAndWing`), `achievements.ts` (8 condiții noi), `tick.ts` (Clockwork Understudy auto-buy best-payback pe toți generatorii, determinist), `save.ts` (CURRENT_SAVE_VERSION=3, MIGRATIONS[2] aditiv, sanitize seededInspiration [0,te] + generatori 9–14 + atelier v3), `index.ts` (export-uri noi).
+- **Atins minim în src/ui (permis pentru tsc):** `src/ui/icons.ts` — cheile noilor generatori (`sagaCitadel 🏰, narratorsGuild 🎭, pantheonPress ⚜️, worldTreeArchive 🌳, sleepingCity 💤, onceUponATime 📜` — distincte de mythEngine 🏛️), atelier v3, upgrade-uri v3, relics v3 (Record-urile cer cheile). Fără el `tsc --noEmit` pica.
+
+### CONTRACTUL NOU pentru UI (config/selectori exportați noi)
+**Config nou (din engine index):** `V3_RUN_UPGRADES`/`V3_RUN_UPGRADE_BY_GEN`/`V3_RUN_UPGRADE_ID_SET`/`V3_RUN_UPGRADE_UNLOCK_OWNED` (150), `DEEP_SHELVES`, `QTY_THRESHOLDS_V3`/`QTY_FINALE_THRESHOLD`/`QTY_FINALE_MULT`/`QTY_STEP_MULT`, `UNIQUE_THRESHOLD` (200)/`UNIQUE_THRESHOLD_TELLING` (150)/`UNIQUE_BONUSES`, `PRESTIGE_V3`, `STRENGTH_OF_STACKS`, `ATLAS_GLOBAL_MULT`, `CURATORS_PATIENCE_EXTRA_CAP_MS`, `ENDLESS_SHELF_BOOKSHELF_CAP`, `PILGRIMS_PAGES_FRAGMENTS_PER_QUILL`, `FOREWORD_START_FRACTION`/`FOREWORD_CAP`, `OFFLINE_EFFICIENCY_CAP` (0.90), `PERPETUAL_MANUSCRIPT_KEPT_IDS`; tipuri `UniqueBonusConfig`, `V3RunUpgradeConfig`, `SaveDataV3`.
+**Selectori noi:** `newWingLevel(state)`, `hasClockworkUnderstudy(state)`, `isUniqueBonusActive(state,genId)`, `activeUniqueBonus(state,genId)`, `uniqueThreshold(state)`, `v3GlobalMultiplier(state)`, `buffProdMult(state)`, `bandGrowth(g0,band)`, `bestPaybackGenerator(...)`, `fragmentsPerQuill(state)`, `sparkRewardMult(state)`, `prestigeNetTotalEarned(state)`, `seedInspirationForNextRun(state,tomeNumberAfter)`. `isGeneratorVisibleInShop` acum gate-uiește tiers 9–14 pe `cfg.wing ≤ atelierLevel(theNewWing)` (pattern blueprintOfMyths, rând nerandat fără nivel). `prestigePreview` folosește te NET de seed + include Divine Royalties.
+**Câmp nou în save/state:** `run.seededInspiration` (number, 0 la migrare; setat la publish = Dog-Eared + Foreword; sanitize clamp [0, totalEarned]). Preview-ul de prestige = `quillsForTotalEarned(prestigeNetTotalEarned(state)) + bonusuri` — jucătorul NU vede segmentele.
+
+### Decizii + abateri documentate (față de 13/14)
+1. **`coef3` = `100 × pow(1e6, 1/6)` = 999.9999999999998 în IEEE-754** (14 §5.1 spunea "= 1000 exact"). Garda `+1e-9` pe segmentele 2–3 face `q(1e15) = 1000` corect; testul NU hardcodează `coef3 === 1000`, verifică output-ul `q()`. Breakpoints măsurate = tabelul 14 §5.3 exact (1e13→464, 1e15→1000, 1e18→1778, 1e21→3162, 1e24→5623).
+2. **`WELL_ROUNDED_GENERATOR_IDS` restrâns la cei 7 de bază** (era `filter(≠mythEngine)` care ar fi înghițit tiers 9–14 → Well-Rounded Library ar fi cerut toate 14). `cosmologySection` (nou) cere toate 14 via `allGeneratorsV3`. Fără fix, testul v2 `wellRoundedLibrary` pica.
+3. **`bestPaybackGenerator` (Clockwork Understudy)** ia `isGeneratorVisibleInShop` + `marginalProduction` ca parametri (evită ciclu selectors↔generators). Determinism: probe-ul păstrează `run.totalEarned` de la începutul tick-ului (revealAt nu se schimbă mid-tick), deci decizia de cumpărare e independentă de felierea în tick-uri. Deciziile (generatori + lastAutoBuyAt) sunt bit-identice la 10×500ms vs 1×5000ms; producția integrează identic doar când nu se declanșează un unlock mid-fereastră (comportament v1 cunoscut — testul pre-deblochează achievements/milestones, ca testul v1 de auto-buy).
+4. **Cost multiplier compus** (Patron's Favor ×0.95 × Conspiracy of Ravens ×0.97) aplicat DUPĂ suma pe benzi, un singur ceil pe total — bulk pe benzi = sumă geometrică per bandă (fiecare bandă are ratio > 1 garantat de podeaua 1.04).
+5. **Divine Royalties + Editor's Due** intră în `prestigePreview` → `earned` → wallet ȘI lifetime la publish (nu doar wallet).
+6. **`sanitizeMeta` storyFragments clamp** rămâne la `SPARK.fragmentsPerQuill - 1` (=4); cu Pilgrims' Pages engine-ul produce max 2, dar 4 e o margine superioară validă (nu strică nimic).
+
+### Actualizări legitime la teste existente (5 fișiere, cu justificare)
+- `achievements.test.ts`: `fullPatronage` cere acum toate 16 upgrade-uri Atelier maxate (v2+v3), construit din `ATELIER_UPGRADES` ca să nu derive; `wellRoundedLibrary` neschimbat conceptual (fix pe WELL_ROUNDED în config, nu în test).
+- `atelier.test.ts`: `richAtelierState` finanțează întregul sink v2+v3 (470.852 🪶, calculat din config) ca regula de aur să se poată verifica pe fiecare nivel; testul "spending the whole wallet" acceptă `≥` (Atlas ×2 ridică legitim producția).
+- `production.test.ts`: `qtyMilestoneMultiplier` extins — 150→×16, 300→×32, 400→×64, 500→×256 (200 = bonus unic, NU multiplicator).
+- `save.test.ts`: lanțul de migrare merge acum v0→v1→v2→v3; `version === CURRENT_SAVE_VERSION` + `seededInspiration === 0`.
+- `save-migration-v2.test.ts`: fixture-ul v1 migrează acum până la v3 (toate câmpurile v2 supraviețuiesc aditiv); assertions pe `CURRENT_SAVE_VERSION` + `seededInspiration`; testul de versiuni greșite testează 4/2/1 respinse, v3 acceptat.
+
+### Teste noi (5 fișiere, 96 teste)
+- `deep-shelves.test.ts` (14): band growths (Muse 1.15→1.12/1.09/1.0675, World-Tree 1.10→1.08/1.06/1.045, podea 1.04); invarianta index 0–100 identică v1 bit-cu-bit; prețuri de graniță (99/100/101/199/200/299/300) hand-computed; bulk pe benzi la granițele 100/101, 200/201, 300/301; Patron's Favor + Conspiracy of Ravens.
+- `prestige-v3.test.ts` (18): **property-test 200.000 eșantioane** `q(te) == floor(sqrt(te/1e5))` pentru te≤1e9; breakpoints 14 §5.3; continuitate la 1e9±1 și 1e15±1e6; monotonie pe grilă log densă + fină la genunchiuri; net-seed anti-exploit (publish instant post-Foreword = 0 🪶); `seedInspirationForNextRun` (Dog-Eared 300 / Foreword 0.1% cap 1e18); Dog-Eared echivalent numeric v2 (q(300)=0).
+- `save-migration-v3.test.ts` (14): MIGRATIONS[2] v2→v3 câmp-cu-câmp pe fixture v2 REAL; lanțul complet v1→v2→v3; producție post-migrare IDENTICĂ (hand-computed); round-trip v3; sanitize seededInspiration clamp [0,te] + generatori 9–14 + atelier v3.
+- `unique-bonuses.test.ts` (20): pragul 200/150 (Hundredth Telling); praguri extinse cu Strength of the Stacks (×2.5/×5); fiecare din cele 14 bonusuri unice cu efect exact (click ×2, echo 2%, cost 0.97, buff +5s, tiers1-4 ×3, offline +5pp cap 0.90, buff prod ×2.5, cooldown −10s floor 45, spark interval 0.75, ach ×1.5, +1 quill, offline cap +12h, spark ×2, global ×2).
+- `v3-systems.test.ts` (30): New Wing gating tiers 9–14 (L1/L2/L3 + revealAt + mythEngine neatins); cele 7 re-scalere (mult exact, unlock 150); Perpetual Manuscript păstrează cele 10 v1 dar NU re-scalerele (nici Second Bookmark); Clockwork Understudy auto-buy best-payback determinist; Atlas ×2 / Endless Shelf cap 100 / Pilgrims 5→3 / City spark ×2/×4; cele 12 achievements + 6 reveal milestones + praguri qty badge; **invarianta "primele 40 min identice"** (v3 no-op pe stare proaspătă).
+
+### De rulat (reproducere)
+`docker compose run --rm test-unit sh -c "npm install --no-audit --no-fund && npx tsc --noEmit && npx vitest run"` → 399 teste verzi.
+
+---
+
 ## Agent Docs v2 — README actualizat pentru v2 (2026-07-04)
 
 ### Status: COMPLET

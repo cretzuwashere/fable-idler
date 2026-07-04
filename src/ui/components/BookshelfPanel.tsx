@@ -2,12 +2,16 @@
 // Spine width/height/ridges/color come from a deterministic visual seed
 // (title + tome number → mulberry32), so the shelf is stable across refreshes.
 // Gilded spines (≥5 quills) are gold; faded spines (v1 migration) are
-// grayscale with no date. Header: "12 fables · +24% production" (cap 25).
+// grayscale with no date. Header: "12 fables · +24% production". The counted
+// cap is 25 (+50%), raised to 100 (+200%) by the v3 relic The Endless Shelf —
+// mirrors bookshelfMultiplier in selectors.ts so the header never under-reports.
 
 import { useEffect, useRef, useState } from 'react';
 import {
   BOOKSHELF,
+  ENDLESS_SHELF_BOOKSHELF_CAP,
   formatNumber,
+  hasRelic,
   mulberry32,
   uniqueFableCount,
 } from '../../engine';
@@ -39,9 +43,12 @@ export function BookshelfPanel({
   revealDelayMs?: number;
 }) {
   const fables = state.meta.fables;
-  const counted = Math.min(uniqueFableCount(fables), BOOKSHELF.countedCap);
+  // Effective cap: 25 by default, 100 with The Endless Shelf (14 §6.2) — same
+  // rule as the engine's bookshelfMultiplier, so the header stays truthful.
+  const cap = hasRelic(state, 'endlessShelf') ? ENDLESS_SHELF_BOOKSHELF_CAP : BOOKSHELF.countedCap;
+  const counted = Math.min(uniqueFableCount(fables), cap);
   const bonusPct = Math.round(counted * BOOKSHELF.bonusPerUniqueFable * 100);
-  const atCap = counted >= BOOKSHELF.countedCap;
+  const atCap = counted >= cap;
 
   // bookSlideIn (#19) only for the spine appended while mounted (a fresh
   // publish), never for the whole shelf on mount. The class is held for the
@@ -79,7 +86,7 @@ export function BookshelfPanel({
         {atCap ? (
           <>
             <strong>
-              {BOOKSHELF.countedCap}/{BOOKSHELF.countedCap} counted
+              {cap}/{cap} counted
             </strong>{' '}
             — the shelf is full of wonders (+{bonusPct}%)
           </>

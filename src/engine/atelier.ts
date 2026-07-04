@@ -10,6 +10,7 @@ import {
   APPRENTICE_MUSE_START_MUSES,
   ATELIER_UPGRADES,
   ATELIER_UPGRADE_INDEX,
+  PERPETUAL_MANUSCRIPT_KEPT_IDS,
   RELICS,
   RELIC_INDEX,
   SECOND_BOOKMARK_KEPT,
@@ -101,16 +102,53 @@ export function apprenticeStartMuses(state: GameState): number {
  * Second Bookmark: the K cheapest OWNED run upgrades (by config cost — 09 §1.2,
  * deterministic; ties broken by config order, which Array.sort keeps stable)
  * survive the reset at Publish the Tome.
+ *
+ * v3 — Perpetual Manuscript (13 §4.1 #14) is a SUPERSET: it keeps all 10 v1 run
+ * upgrades. The 7 v3 re-scalers (§2.4) are NEVER kept by either — they stay the
+ * per-run shopping arc of long runs (PERPETUAL_MANUSCRIPT_KEPT_IDS excludes them,
+ * and Second Bookmark only ever considers the same 10 v1 ids).
  */
 export function bookmarkedUpgrades(state: GameState): Partial<Record<RunUpgradeId, true>> {
-  const level = atelierLevel(state, 'secondBookmark');
-  if (level === 0) return {};
-  const keptCount = SECOND_BOOKMARK_KEPT[level - 1];
-  const owned = UPGRADES.filter(
-    (u) => u.id !== 'quillResonance' && state.run.upgrades[u.id as RunUpgradeId] === true,
-  );
-  const cheapest = [...owned].sort((a, b) => a.cost - b.cost).slice(0, keptCount);
   const kept: Partial<Record<RunUpgradeId, true>> = {};
-  for (const u of cheapest) kept[u.id as RunUpgradeId] = true;
+
+  // Perpetual Manuscript first: keep every OWNED v1 run upgrade.
+  if (atelierLevel(state, 'perpetualManuscript') >= 1) {
+    for (const id of PERPETUAL_MANUSCRIPT_KEPT_IDS) {
+      if (state.run.upgrades[id] === true) kept[id] = true;
+    }
+  }
+
+  // Second Bookmark: the K cheapest owned v1 run upgrades (union with the above).
+  const level = atelierLevel(state, 'secondBookmark');
+  if (level > 0) {
+    const keptCount = SECOND_BOOKMARK_KEPT[level - 1];
+    const owned = UPGRADES.filter(
+      (u) =>
+        u.id !== 'quillResonance' &&
+        // Second Bookmark only considers the 10 v1 run upgrades, never the v3
+        // re-scalers (their config cost would otherwise sort them "cheapest"
+        // only relative to each other; they must stay per-run regardless).
+        PERPETUAL_MANUSCRIPT_KEPT_IDS.includes(u.id as RunUpgradeId) &&
+        state.run.upgrades[u.id as RunUpgradeId] === true,
+    );
+    const cheapest = [...owned].sort((a, b) => a.cost - b.cost).slice(0, keptCount);
+    for (const u of cheapest) kept[u.id as RunUpgradeId] = true;
+  }
+
   return kept;
+}
+
+// ---------------------------------------------------------------------------
+// v3 — New Wing gating + auto-buy gate
+// ---------------------------------------------------------------------------
+
+/** Current level of The New Wing (0/1/2/3) — the content gate for tiers 9–14. */
+export function newWingLevel(state: GameState): number {
+  return atelierLevel(state, 'theNewWing');
+}
+
+/** Clockwork Understudy auto-buys EVERY generator (requires Self-Writing Contract
+ *  as its prerequisite, 13 §4.1 #12; the reducer/tick own the actual purchases). */
+export function hasClockworkUnderstudy(state: GameState): boolean {
+  return atelierLevel(state, 'clockworkUnderstudy') >= 1;
 }

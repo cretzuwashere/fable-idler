@@ -2,6 +2,7 @@
 // shows up in production, and achievements survive prestige (meta state).
 import { describe, expect, it } from 'vitest';
 import {
+  ATELIER_UPGRADES,
   checkAchievements,
   perSecondNoBuff,
   publishTheTome,
@@ -213,21 +214,22 @@ describe('v2 conditions', () => {
     expect(unlockedIds(makeState())).not.toContain('speedReader'); // null = never published timed
   });
 
-  it('fullPatronage: EVERY Atelier upgrade at max level', () => {
+  it('fullPatronage: EVERY Atelier upgrade at max level (all 16 v2+v3)', () => {
+    // v3 extends the Atelier to 16 upgrades — isAtelierComplete now requires them
+    // all. Build "every upgrade maxed" from config so it can never drift.
+    const maxedAll = () =>
+      Object.fromEntries(
+        ATELIER_UPGRADES.map((u) => [u.id, u.costs.length]),
+      ) as Record<string, number>;
+
+    // One short of complete (editorsDue not bought) → NOT fullPatronage.
     const partial = makeState((x) => {
-      x.meta.atelier = {
-        apprenticeMuse: 3, selfWritingContract: 1, strokeOfGenius: 2, blueprintOfMyths: 1,
-        restlessHeart: 2, thunderousApplause: 1, nightOwlPact: 1, sparkcatchersNet: 2,
-        secondBookmark: 2, editorsDue: 0,
-      };
+      x.meta.atelier = { ...maxedAll(), editorsDue: 0 };
     });
     expect(unlockedIds(partial)).not.toContain('fullPatronage');
+
     const full = makeState((x) => {
-      x.meta.atelier = {
-        apprenticeMuse: 3, selfWritingContract: 1, strokeOfGenius: 2, blueprintOfMyths: 1,
-        restlessHeart: 2, thunderousApplause: 1, nightOwlPact: 1, sparkcatchersNet: 2,
-        secondBookmark: 2, editorsDue: 1,
-      };
+      x.meta.atelier = maxedAll();
     });
     expect(unlockedIds(full)).toContain('fullPatronage');
   });

@@ -13,9 +13,28 @@ import { MAX_TICK_DT_MS, SELF_WRITING_CONTRACT } from './config';
 import { atelierLevel } from './atelier';
 import { checkAchievements } from './achievements';
 import { checkMilestones } from './milestones';
-import { costOf } from './generators';
-import { globalMultiplier, rawProduction } from './selectors';
-import type { GameState } from './types';
+import { bestPaybackGenerator, costOf } from './generators';
+import {
+  generatorProduction,
+  globalMultiplier,
+  isGeneratorVisibleInShop,
+  rawProduction,
+} from './selectors';
+import type { GameState, GeneratorId } from './types';
+
+/** Marginal production of one more unit of `id` (probe-based; includes qty
+ *  milestones + re-scalers). Used by Clockwork Understudy's best-payback pick. */
+function marginalProduction(state: GameState, id: GeneratorId): number {
+  const before = generatorProduction(state, id);
+  const probe: GameState = {
+    ...state,
+    run: {
+      ...state.run,
+      generators: { ...state.run.generators, [id]: state.run.generators[id] + 1 },
+    },
+  };
+  return generatorProduction(probe, id) - before;
+}
 
 export function tick(state: GameState, nowMs: number, dtMs: number): GameState {
   // Clamp: negative dt (clock rollback) produces nothing; dt above 60s is
@@ -29,6 +48,9 @@ export function tick(state: GameState, nowMs: number, dtMs: number): GameState {
     const spark = state.run.sparkBuff;
     const gossipUntil = spark !== null && spark.kind === 'gossipBonanza' ? spark.activeUntil : 0;
     const autoBuyOn = atelierLevel(state, 'selfWritingContract') >= 1;
+    // Clockwork Understudy (v3) extends auto-buy to EVERY generator (best payback
+    // first). It requires the Self-Writing Contract, so autoBuyOn gates both.
+    const clockworkOn = autoBuyOn && atelierLevel(state, 'clockworkUnderstudy') >= 1;
 
     let generators = state.run.generators;
     let inspiration = state.run.inspiration;
@@ -66,16 +88,25 @@ export function tick(state: GameState, nowMs: number, dtMs: number): GameState {
       }
       t = tNext;
 
-      // Self-Writing Contract: at most 1 Wandering Muse per second, only while
-      // her cost is ≤ 1% of the balance (never drains the purse — 11 §2).
+      // Auto-buy at most one generator per second, only while its cost is ≤ 1%
+      // of the balance (never drains the purse — 11 §2). Self-Writing Contract
+      // targets the Wandering Muse; Clockwork Understudy (v3) picks the best
+      // payback among ALL visible generators. Deterministic: the pick depends
+      // only on the (epoch-aligned) probe state, not on tick chopping.
       if (
         autoBuyBoundary &&
         t - lastAutoBuyAt >= SELF_WRITING_CONTRACT.autoBuyIntervalMs
       ) {
-        const cost = costOf(probe, 'wanderingMuse');
-        if (cost <= SELF_WRITING_CONTRACT.autoBuyMaxCostFraction * inspiration) {
+        const maxCost = SELF_WRITING_CONTRACT.autoBuyMaxCostFraction * inspiration;
+        const target: GeneratorId | null = clockworkOn
+          ? bestPaybackGenerator(probe, maxCost, isGeneratorVisibleInShop, marginalProduction)
+          : costOf(probe, 'wanderingMuse') <= maxCost
+            ? 'wanderingMuse'
+            : null;
+        if (target !== null) {
+          const cost = costOf(probe, target);
           inspiration -= cost;
-          generators = { ...generators, wanderingMuse: generators.wanderingMuse + 1 };
+          generators = { ...generators, [target]: generators[target] + 1 };
           lastAutoBuyAt = t;
           probe = { ...state, run: { ...state.run, generators } };
         }

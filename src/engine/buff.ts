@@ -16,6 +16,7 @@ import {
 } from './config';
 import { atelierLevel, hasRelic } from './atelier';
 import { globalMultiplier, rawProduction, isSparkBuffActive } from './selectors';
+import { activeUniqueBonus } from './unique-bonuses';
 import type { GameState } from './types';
 
 const buffUnlockThreshold = (() => {
@@ -35,9 +36,14 @@ export function buffCooldownRemainingMs(state: GameState, now: number): number {
   return Math.max(0, state.run.buff.cooldownUntil - now);
 }
 
-/** Plain buff duration: 15s, or 22.5s with Burst of Genius (no relic effects). */
+/** Plain buff duration: 15s, or 22.5s with Burst of Genius; +5s (additive, after
+ *  Burst of Genius) with The Quills Write Back (Enchanted Quill unique — 14 §4.2).
+ *  No relic effects (Standing Ovation is layered in nextManualBuffDurationMs). */
 export function buffDurationMs(state: GameState): number {
-  return state.run.upgrades.burstOfGenius ? BUFF.durationUpgradedMs : BUFF.durationMs;
+  let ms = state.run.upgrades.burstOfGenius ? BUFF.durationUpgradedMs : BUFF.durationMs;
+  const quills = activeUniqueBonus(state, 'enchantedQuill');
+  if (quills?.buffDurationBonusSec !== undefined) ms += quills.buffDurationBonusSec * 1000;
+  return ms;
 }
 
 /** Duration the NEXT MANUAL activation would get: plain duration, doubled on
@@ -47,10 +53,19 @@ export function nextManualBuffDurationMs(state: GameState): number {
   return buffDurationMs(state) * (ovation ? STANDING_OVATION_DURATION_MULT : 1);
 }
 
-/** Cooldown from activation: 90s base, 75s/60s with Restless Heart L1/L2. */
+/** Cooldown from activation: 90s base, 75s/60s with Restless Heart L1/L2; −10s
+ *  more with Perpetual Myth (Myth Engine unique), with a global floor of 45s
+ *  (14 §4.2). */
 export function buffCooldownMs(state: GameState): number {
   const level = atelierLevel(state, 'restlessHeart');
-  return level > 0 ? RESTLESS_HEART_COOLDOWN_MS[level - 1] : BUFF.cooldownMs;
+  let ms = level > 0 ? RESTLESS_HEART_COOLDOWN_MS[level - 1] : BUFF.cooldownMs;
+  const myth = activeUniqueBonus(state, 'mythEngine');
+  if (myth?.buffCooldownReductionSec !== undefined) {
+    ms -= myth.buffCooldownReductionSec * 1000;
+    const floorSec = myth.cooldownFloorSec ?? 45;
+    ms = Math.max(ms, floorSec * 1000);
+  }
+  return ms;
 }
 
 /** Unlocked by the Racing Heart milestone (500 run totalEarned). */

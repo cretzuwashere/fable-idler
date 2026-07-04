@@ -28,20 +28,32 @@ describe('base production', () => {
   });
 });
 
-describe('quantity milestones (25/50/100 → ×2/×4/×8)', () => {
+describe('quantity milestones (v1 25/50/100 → ×2/×4/×8; v3 150/300/400/500)', () => {
   it('multiplier steps exactly at the thresholds', () => {
     const at = (n: number) =>
       qtyMilestoneMultiplier(
         makeState((x) => void (x.run.generators.wanderingMuse = n)),
         'wanderingMuse',
       );
+    // v1 thresholds
     expect(at(24)).toBe(1);
     expect(at(25)).toBe(2);
     expect(at(49)).toBe(2);
     expect(at(50)).toBe(4);
     expect(at(99)).toBe(4);
     expect(at(100)).toBe(8);
-    expect(at(250)).toBe(8);
+    // v3 thresholds (150 ×2, 300 ×2, 400 ×2, 500 ×4). 200 is the UNIQUE bonus,
+    // NOT a production multiplier here — so 200 and 250 stay at the 150 step.
+    expect(at(149)).toBe(8);
+    expect(at(150)).toBe(16);
+    expect(at(200)).toBe(16); // unique bonus, no extra production mult
+    expect(at(250)).toBe(16);
+    expect(at(299)).toBe(16);
+    expect(at(300)).toBe(32);
+    expect(at(399)).toBe(32);
+    expect(at(400)).toBe(64);
+    expect(at(499)).toBe(64);
+    expect(at(500)).toBe(256); // ×4 finale: 64 × 4
   });
 
   it('applies to that generator only', () => {

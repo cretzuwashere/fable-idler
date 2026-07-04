@@ -8,6 +8,7 @@ import {
   createGameStore,
   createInitialState,
   createMemoryStorage,
+  CURRENT_SAVE_VERSION,
   exportSave,
   importSaveString,
   loadSave,
@@ -178,10 +179,11 @@ describe('import sanitization — states the engine itself cannot produce', () =
 });
 
 describe('migration mechanism', () => {
-  it('applies the chain until the current version (v0 stub → real v1→v2 migration)', () => {
+  it('applies the chain until the current version (v0 stub → real v1→v2→v3 migration)', () => {
     const v0 = { version: 0, savedAt: 10, legacyRun: { inspiration: 50 } };
-    // v2 update: the chain now needs two hops — the stub 0→1 plus the REAL
-    // MIGRATIONS[1] (1→2), proving multi-step chains compose.
+    // v3 update: the chain now needs THREE hops — the stub 0→1 plus the REAL
+    // MIGRATIONS[1] (1→2) and MIGRATIONS[2] (2→3), proving multi-step chains
+    // compose all the way to CURRENT_SAVE_VERSION.
     const migrations: Record<number, Migration> = {
       ...MIGRATIONS,
       0: (old) => {
@@ -198,8 +200,9 @@ describe('migration mechanism', () => {
     const migrated = applyMigrations(v0, migrations);
     const data = parseSave(JSON.stringify(migrated), migrations);
     expect(data).not.toBeNull();
-    expect(data!.version).toBe(2);
+    expect(data!.version).toBe(CURRENT_SAVE_VERSION);
     expect(data!.run.inspiration).toBe(50);
+    expect(data!.run.seededInspiration).toBe(0); // v3 field defaulted
   });
 
   it('a version with no migration path is left as-is and then rejected', () => {

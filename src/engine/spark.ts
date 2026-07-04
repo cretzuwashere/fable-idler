@@ -5,11 +5,29 @@
 // then computes the magnitude DETERMINISTICALLY from the current state —
 // nothing pending is ever persisted (anti save-scumming, 09 §2.3).
 
-import { SPARK } from './config';
-import { atelierLevel } from './atelier';
+import { PILGRIMS_PAGES_FRAGMENTS_PER_QUILL, SPARK, UNIQUE_BONUSES } from './config';
+import { atelierLevel, hasRelic } from './atelier';
 import { buffDurationMs } from './buff';
 import { clickPower, perSecond } from './selectors';
+import { isUniqueBonusActive } from './unique-bonuses';
 import type { GameState, SparkBuffState, SparkRewardKind } from './types';
+
+/** Story Fragments needed to bind a Golden Quill: 5, or 3 with Pilgrims' Pages. */
+export function fragmentsPerQuill(state: GameState): number {
+  return hasRelic(state, 'pilgrimsPages') ? PILGRIMS_PAGES_FRAGMENTS_PER_QUILL : SPARK.fragmentsPerQuill;
+}
+
+/** Total spark-reward multiplier: Sparkcatcher's Net L2 (×2) × The City Dreams
+ *  of You (Sleeping City unique, ×2) → up to ×4 (14 §4.2). Applies to sums,
+ *  durations, fragments and quills — never timeSlip. */
+export function sparkRewardMult(state: GameState): number {
+  let mult = atelierLevel(state, 'sparkcatchersNet') >= 2 ? SPARK.netRewardMult : 1;
+  const city = UNIQUE_BONUSES.sleepingCity;
+  if (city?.sparkRewardMult !== undefined && isUniqueBonusActive(state, 'sleepingCity')) {
+    mult *= city.sparkRewardMult;
+  }
+  return mult;
+}
 
 /** Fixed roll order — the cumulative thresholds below follow this order. */
 export const SPARK_KINDS: readonly SparkRewardKind[] = [
@@ -71,8 +89,8 @@ export function sparkRewardSummary(
   kind: SparkRewardKind,
   now: number,
 ): SparkRewardSummary {
-  const netL2 = atelierLevel(state, 'sparkcatchersNet') >= 2;
-  const mult = netL2 ? SPARK.netRewardMult : 1;
+  const mult = sparkRewardMult(state); // Net L2 × The City Dreams of You (up to ×4)
+  const perQuill = fragmentsPerQuill(state); // 5, or 3 with Pilgrims' Pages
   const none: Omit<SparkRewardSummary, 'kind'> = {
     inspiration: 0,
     quills: 0,
@@ -106,9 +124,7 @@ export function sparkRewardSummary(
       return { kind, ...none };
     case 'storyFragment': {
       const fragments = 1 * mult;
-      const bound = Math.floor(
-        (state.meta.storyFragments + fragments) / SPARK.fragmentsPerQuill,
-      );
+      const bound = Math.floor((state.meta.storyFragments + fragments) / perQuill);
       return { kind, ...none, fragments, quills: bound, boundQuill: bound > 0 };
     }
     case 'goldenQuillDrop':
@@ -156,7 +172,7 @@ export function applySparkReward(
 
   if (kind === 'storyFragment') {
     meta.storyFragments =
-      (state.meta.storyFragments + reward.fragments) % SPARK.fragmentsPerQuill;
+      (state.meta.storyFragments + reward.fragments) % fragmentsPerQuill(state);
     stats.quillsFromFragments += reward.quills;
   }
 

@@ -30,9 +30,13 @@ import {
   isUpgradeUnlocked,
   maxAffordable,
   prestigePreview,
+  QTY_FINALE_MULT,
+  QTY_FINALE_THRESHOLD,
+  QTY_STEP_MULT,
   QUILL_BONUS,
   RELIC_INDEX,
   REVEAL_MILESTONES,
+  uniqueThreshold,
   UPGRADES,
 } from '../engine';
 import type { GameEvent, GeneratorId, OfflineReport, SparkRewardSummary } from '../engine';
@@ -66,6 +70,7 @@ import {
   OFFLINE_MODAL_UI_MIN_MS,
   SPARK_TUTORIAL_KEY,
 } from './meta';
+import { UNIQUE_BONUS_INFO } from './unique-bonuses-info';
 import './App.css';
 
 type CenterTab = 'generators' | 'upgrades' | 'atelier' | 'hall' | 'fable';
@@ -224,11 +229,30 @@ export function App({
           }
           return;
         }
-        // quantity milestone: `qty:<generatorId>:<threshold>`
-        const [, generatorId, threshold] = event.id.split(':');
+        // quantity milestone: `qty:<generatorId>:<threshold>` — the message
+        // depends on which threshold fired: a unique bonus (200/150), the ×4
+        // grand finale (500), or a plain doubling (25/50/100/150/300/400).
+        const [, generatorId, thresholdStr] = event.id.split(':');
         const cfg = GENERATOR_INDEX[generatorId as GeneratorId];
         if (cfg) {
-          pushToast('milestone', `${cfg.name} ×2!`, `${threshold} owned — their production doubles.`);
+          const threshold = Number(thresholdStr);
+          const uThreshold = uniqueThreshold(store.getState());
+          const bonus = UNIQUE_BONUS_INFO[generatorId as GeneratorId];
+          if (threshold === uThreshold && bonus) {
+            pushToast('milestone', `${cfg.name}: ${bonus.name}`, `${threshold} owned — ${bonus.effect}`);
+          } else if (threshold === QTY_FINALE_THRESHOLD) {
+            pushToast(
+              'milestone',
+              `${cfg.name} ×${QTY_FINALE_MULT}!`,
+              `${threshold} owned — a grand finale for the deep shelves.`,
+            );
+          } else {
+            pushToast(
+              'milestone',
+              `${cfg.name} ×${QTY_STEP_MULT}!`,
+              `${threshold} owned — their production doubles.`,
+            );
+          }
         }
         return;
       }
