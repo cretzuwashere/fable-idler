@@ -9,6 +9,19 @@
 
 import { test as base, expect, type Page } from '@playwright/test';
 
+/**
+ * Chromium's own network layer logs "Failed to load resource: …" as a console
+ * error whenever a request fails (route.abort(), nginx 502 while the api is
+ * down, HTTP 4xx like the 409 nickname-taken response). That log is emitted by
+ * the BROWSER, not by the application, and cannot be suppressed from JS (the
+ * fetch itself is caught and handled silently — verified by the UI agent, the
+ * app emits zero console.* calls). Ignore ONLY that exact class of message and
+ * ONLY for /api/ URLs; every other console.error still fails the test.
+ */
+function isBrowserApiResourceFailure(text: string, url: string): boolean {
+  return text.startsWith('Failed to load resource') && url.includes('/api/');
+}
+
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {
     const errors: string[] = [];
@@ -17,6 +30,7 @@ export const test = base.extend<{ page: Page }>({
     });
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
+        if (isBrowserApiResourceFailure(msg.text(), msg.location().url ?? '')) return;
         errors.push(`console.error: ${msg.text()}`);
       }
     });

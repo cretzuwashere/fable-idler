@@ -138,3 +138,45 @@ docker compose up --build -d web                      → web healthy; HTTP 200 
 docker compose run --rm test-e2e                      → 11 passed (10.4s) — pe imaginea RECONSTRUITĂ
 tools/screenshots.mjs (în containerul test-e2e)       → 6 capturi noi în test-results/
 ```
+
+---
+
+# Addendum Agent 8 v2 — E2E pentru Atelier / Hall / Spark / Bookshelf / migrare (2026-07-04)
+
+## Verdict: ZERO bug-uri de aplicație găsite de E2E v2
+
+Toate cele **17 teste E2E (13 spec-uri: 11 teste v1 + 6 noi)** trec pe stack-ul compose COMPLET (web reconstruit cu `--build` + api healthy), cu guard-ul de console errors activ în fiecare test. **Nicio modificare în `src/`**. Suita unit+server neatinsă și verde (**297/297**).
+
+## 1. Reparații LEGITIME la spec-urile v1 (regresii de spec, nu de produs — anunțate de Agentul UI v2 în 05)
+
+| # | Spec | Problema | Fix |
+|---|---|---|---|
+| 1 | `04-unlocks.spec.ts` | asertul hardcodat „1/14" — engine-ul v2 are **24** achievements (verificat în `config.ts`: 24 intrări în `ACHIEVEMENTS`), iar header-ul UI e dinamic (`{unlocked}/{ACHIEVEMENTS.length}`) | asert DINAMIC: importă `ACHIEVEMENTS` din `../../src/engine` și verifică `1/${ACHIEVEMENTS.length}` — nu se mai rupe la următoarea extindere |
+| 2 | `fixtures.ts` | la scenariile care taie API-ul (route.abort / api oprit / răspuns 409), **Chromium însuși** loghează `Failed to load resource: …` ca console error — nesuprimabil din JS; aplicația emite zero `console.*` (verificat de Agentul UI). Guard-ul v1 număra ORICE console.error ⇒ fals-pozitiv | filtrul `isBrowserApiResourceFailure(text, url)`: ignoră DOAR mesajele care încep cu `Failed to load resource` ȘI a căror `msg.location().url` conține `/api/`. Orice alt console.error (inclusiv failed-resource pe non-API) pică testul în continuare |
+
+## 2. Ce au verificat spec-urile noi (toate verzi)
+
+- **09-atelier**: flux 100% prin UI — publish real la 500k (+2 🪶) → tab-atelier apare → Apprentice Muse cumpărată cu 1 🪶 fără dialog (< pragul 10) → **purse 2→1, lifetime imobil la 2** (regula de aur vizibilă și în stare: `goldenQuills=1`, `lifetimeQuillsEarned=2`), producția NU scade (assert `perSecond(after) ≥ perSecond(before)` cu selectorul real al engine-ului + textul `per-second` egal cu `+formatRate(rate)/sec`); 4 sloturi relics locked cu progres „1/3 tomes"; al 2-lea publish → runda nouă pornește cu **5 Wandering Muses**, atelier-ul supraviețuiește resetului.
+- **10-leaderboard**: (a) pe API-ul REAL din compose: nickname rezervat în prealabil printr-un POST direct (alt „jucător") → claim-ul UI pe același nume → **eroare inline 409** („already inked"), input păstrat, panel rămâne `opt-in`; claim pe nume liber → `data-state=active`, rândul propriu în tabel, identitatea în `meta.settings.leaderboard` + achievement `nameInLights`; **reload → direct active** (identitatea e în save). (b) degradare: `page.route('**/api/**', abort)` + identitate injectată → `data-state=offline` + badge-ul courier, jocul complet funcțional (click-urile cresc starea), consola curată prin filtrul de la §1.2.
+- **11-spark**: `forceSpark('inkBurst')` după milestone-ul `aLightAtTheWindow` → `stray-spark` vizibil → **`dispatchEvent('pointerdown')`** (nu click — elementul zboară) → toast `data-toast-kind=spark` cu „+50 Inspiration" (floor-ul 50×click value la producție 0 — cifră EXACTĂ: 1000→1050) + `sparksCaught=1`; un al 2-lea spark NEprins + reload → **nu re-apare, nu acordă nimic** (1050 neschimbat).
+- **12-bookshelf**: publish prin UI → toast `fable` + `bookshelf-panel` cu EXACT `fable-spine-1` (nefaded, runStats reale) + tooltip (titlu + „Tome #1" + „Earned"); al 2-lea publish → 2 cotoare + header `2 fables · +{unique×2}% production` (procentul calculat din titlurile UNICE din stare — un „reprint" legitim contează o dată).
+- **13-migration**: save v1 REAL (schema exactă v1: version:1 + run/meta complete) injectat cu `addInitScript` sub `SAVE_KEY`, `goldenQuills:3, tomesPublished:3` → load fără erori: **portofel 3 ȘI lifetime 3** (regula de aur), 3 fabule FADED cu titluri = `generateFadedTitle(n)` (regenerabile, deterministe), achievements păstrate, `fastestPublishMs:null`; producția include EXACT ×1.9 (raport `perSecond(state)/perSecond(state cu lifetime=0)` = 1+0.30×3, calculat cu selectorul real); UI: chip 3 🪶, raft cu 3 cotoare `data-faded`, Atelier purse/lifetime 3/3; fără modal offline sub 60s.
+
+## 3. Capcane de infrastructură de test v2 (evitate prin design; nu sunt bug-uri de aplicație)
+
+| # | Capcană | Cum s-a evitat |
+|---|---|---|
+| 1 | **Prima cumpărătură din Atelier urcă producția** (+1% prin achievement-ul `patronOfTheArts`) — un assert de egalitate exactă pe `perSecond` înainte/după pica legitim | invariantul corect e „NU scade": `expect(rateAfter).toBeGreaterThanOrEqual(rateBefore)` + textul afișat egal cu valoarea engine-ului de DUPĂ |
+| 2 | **Coada de toast-uri** (max 3 vizibile, 4s fiecare): `addInspiration(500k)` împinge ~12 toast-uri de milestones/achievements; toastul `fable` al publish-ului ar fi apărut abia la ~25s — dincolo de orice timeout rezonabil | spec-urile 11/12 GOLESC coada întâi (`toHaveCount(0)`, timeout generos) și abia apoi declanșează evenimentul de verificat; `test.slow()` pe ambele (nota din 05 §E2E #4 confirmată în practică) |
+| 3 | **Post-prestige coloanele dispar** până se re-ating milestone-urile rundei (comportament v1 intenționat) | `addInspiration(100k)` imediat după publish (nota 05 §E2E #5); milestone-urile pe tomes (Gilded Door / First Spine / Word Travels Fast) se re-adaugă singure la primul check |
+| 4 | **Volumul `leaderboard_data` PERSISTĂ între rulări** — nickname-urile vechi rămân rezervate | nickname-uri unice per încercare (`taken-`/`e2e-` + timestamp base36); 409-ul se testează REZERVÂND întâi numele printr-un POST direct în același test (nu între teste — retry-urile ar fi rupt orice partajare) |
+| 5 | **`data-state=offline` cere identitate** (fără identitate panoul stă în `opt-in` și nu face niciun GET) | scenariul de degradare injectează prin hook exact forma pe care ar fi salvat-o un claim reușit (`setSettings.leaderboard`), apoi taie rețeaua |
+| 6 | **Sparkul e în zbor 10s** — `click()` pe element instabil e flaky | `dispatchEvent('pointerdown')` (handlerul real al componentei; nota 05 §E2E #3) |
+
+## 4. Validarea finală v2
+
+```
+docker compose run --rm --build test-e2e   → 17 passed (40.3s) — web RECONSTRUIT + api healthy
+docker compose run --rm test-unit          → Test Files 19 passed (19) / Tests 297 passed (297)
+docker compose down && docker compose up -d web api   → ambele healthy la final (stack lăsat pornit)
+```

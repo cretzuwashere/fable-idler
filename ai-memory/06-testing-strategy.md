@@ -1,7 +1,6 @@
 # 06 — Testing Strategy (Agent 8: Testing & QA)
 
-> Starea la 2026-07-04 (după quality gate-ul Agent 9): **156 teste unitare (Vitest)** + **11 teste E2E în 8 spec-uri (Playwright)**. Totul rulează exclusiv prin Docker — pe host nu există Node.
-> (Corecție Agent 9: versiunea anterioară a acestui fișier spunea „10 teste E2E" — numărul real, confirmat de propriul tabel §1.2 și de rulări, a fost mereu 11.)
+> Starea la 2026-07-04 (după Agent 8 v2 — E2E): **278 teste unit (Vitest) + 19 teste server (Vitest, HTTP real) = 297** + **17 teste E2E în 13 spec-uri (Playwright)**. Totul rulează exclusiv prin Docker — pe host nu există Node.
 
 ---
 
@@ -9,15 +8,24 @@
 
 ```
         ┌────────────────────────┐
-        │  E2E (Playwright)      │  11 teste / 8 spec-uri
-        │  build PROD + nginx    │  fluxuri reale de utilizator, contract UI↔engine
+        │  E2E (Playwright)      │  17 teste / 13 spec-uri
+        │  build PROD + nginx    │  fluxuri reale de utilizator, contract UI↔engine,
+        │  + api (compose)       │  leaderboard REAL + degradare, migrare v1→v2
         ├────────────────────────┤
-        │  Unit (Vitest)         │  156 teste / 13 fișiere
+        │  Server (Vitest)       │  19 teste / 1 fișier (tests/server/)
+        │  createApp().listen(0) │  API-ul Hall of Fables prin HTTP real, în proces
+        ├────────────────────────┤
+        │  Unit (Vitest)         │  278 teste / 18 fișiere
         │  doar src/engine       │  matematica jocului, determinism, save, acțiuni
         └────────────────────────┘
 ```
 
 Fără nivel intermediar de teste de componente React (decizie 02 §6): engine-ul pur acoperă toată logica, iar E2E acoperă integrarea UI — un strat de teste de componente ar dubla costul de întreținere fără să prindă clase noi de bug-uri la dimensiunea acestui proiect.
+
+### 1.0 Cum rulează serverul în teste (v2)
+
+- **Nivelul server** (`tests/server/leaderboard-api.test.ts`, 19 teste): NU pornește Docker și NU folosește rețeaua compose — importă `createApp` din `server/src/app.mjs`, îl pornește pe **port efemer în proces** (`listen(0)`) și îl lovește cu `fetch`-ul nativ Node 22. `now` injectat (rate-limit/tie-break/uptime deterministe), `dataFile` în `mkdtemp`. Rulează în `test-unit` (inclus prin `test.include` din vite.config).
+- **Nivelul E2E**: `test-e2e` are `depends_on` pe `web` ȘI `api` (ambele `service_healthy`) — stack-ul REAL pornește automat; clientul vorbește cu api-ul prin proxy-ul nginx `/api/` al lui `web` (același drum ca în producție). Serviciul `api` nu publică port pe host; volumul `leaderboard_data` persistă între rulări (nickname-urile E2E sunt unice per încercare, cu sufix timestamp).
 
 ### 1.1 Nivelul unit (Vitest, `tests/unit/`, environment `node`)
 
@@ -38,6 +46,13 @@ Importă DOAR din `src/engine` — zero DOM, zero React, timere injectabile (`de
 | `game-loop.test.ts` | (Agent 9) gap foreground >60s → ramura offline (creditare 50%, plafon, event `offline`, persist imediat); importSave fără evenimente de unlock |
 | `settings.test.ts` | setSettings merge parțial, persistență imediată, supraviețuire prestige |
 | `progression-speed.test.ts` | runda 2 măsurabil mai rapidă (simulare deterministă) |
+| `atelier.test.ts` (v2, 26) | cele 10 upgrade-uri: costuri/niveluri/no-op la maxat sau fără fonduri, regula de aur la cumpărare |
+| `spark.test.ts` (v2, 22) | rollSparkKind pe praguri exacte, sparkRewardSummary/applySparkReward per kind, Net L2 |
+| `fables.test.ts` (v2, 11) | titluri procedurale DETERMINISTE (hardcodate — gardă anti-reordonare a tabelelor de cuvinte), uniqueFableCount |
+| `save-migration-v2.test.ts` (v2, 19) | MIGRATIONS[1] real: regula de aur (wallet≡lifetime), fabule faded plafonate, payload-uri ostile |
+| `selectors-v2.test.ts` (v2, 15) | crit/clickValue, bookshelfMultiplier, offlineCapMs/Efficiency, sparkIntervalRange, isGeneratorVisibleInShop |
+
+**Nivelul server** (`tests/server/leaderboard-api.test.ts`, 19): contractul 10 §1.4 byte-cu-byte — claim/update/rename, 401/409/422/429 cu `field`/`Retry-After`, best-keeping, sortări+tie-break, `me`, persistență round-trip pe fișier, fișier corupt → backup `.corrupt-<ts>`.
 
 ### 1.2 Nivelul E2E (Playwright, `tests/e2e/`, chromium)
 
@@ -53,23 +68,30 @@ Rulează pe **build-ul de PRODUCȚIE servit de nginx** (serviciul `web`, `PW_BAS
 | `06-offline.spec.ts` | 2 | `addInitScript` scrie save valid cu `savedAt = now − 1h` SUB cheia importată `SAVE_KEY` → modalul „While you were away" cu „10.8K" (6/s × 1h × 50%), „at 50% efficiency", sold creditat „11.8K"; contra-test: fără save → fără modal |
 | `07-prestige.spec.ts` | 1 | `addInspiration(500000)` → preview „+2" 🪶 → dialog cu checkbox obligatoriu → overlay prestigeFade apare și dispare → quills=2 în header și în stare, run resetat la zero, achievements păstrate + `publishedAuthor` |
 | `08-export-import-reset.spec.ts` | 1 | BONUS: export base64 → hard reset dublu (buton final armat doar de textul „RESET") → import invalid = eroare inline → import valid = stare restaurată (1.23K) |
+| `09-atelier.spec.ts` (v2) | 1 | publish REAL prin UI → tab-atelier → Apprentice Muse cu 1 🪶: purse 2→1, lifetime IMOBIL la 2 (regula de aur în UI + stare), `perSecond` nu scade (asertat cu selectorul engine-ului; poate CREȘTE prin achievement-ul patronOfTheArts), 4 relics locked cu progres; al 2-lea publish → runda pornește cu 5 muses, atelierul persistă |
+| `10-leaderboard.spec.ts` (v2) | 2 | (a) API-ul REAL din compose: 409 inline pe nume rezervat (POST direct prealabil), claim liber → `data-state=active` + rândul propriu, identitatea în save + `nameInLights`, reload → direct active; (b) `route.abort('**/api/**')` + identitate injectată → `data-state=offline` + badge courier, jocul funcțional, consola curată |
+| `11-spark.spec.ts` (v2) | 1 | `forceSpark('inkBurst')` post-`aLightAtTheWindow` → catch prin `dispatchEvent('pointerdown')` → toast `spark` cu „+50 Inspiration" + 1000→1050 EXACT + `sparksCaught=1`; spark neprins + reload → nu re-apare, nimic acordat |
+| `12-bookshelf.spec.ts` (v2) | 1 | publish prin UI → toast `fable` + raft cu EXACT 1 cotor (nefaded) + tooltip (titlu/„Tome #1"/„Earned"); al 2-lea publish → 2 cotoare + header `+{unique×2}%` (calculat din titlurile unice din stare) |
+| `13-migration.spec.ts` (v2) | 1 | save v1 REAL injectat (`addInitScript` + `SAVE_KEY`; quills 3, tomes 3) → load curat: portofel 3 ȘI lifetime 3, 3 fabule faded cu titluri `generateFadedTitle(n)`, achievements păstrate, producția EXACT ×1.9 (raport de selectori), UI complet (chip/raft/atelier), fără modal offline |
 
 **`fixtures.ts`** — obligatoriu în toate spec-urile: suprascrie fixture-ul `page` ca să colecteze `page.on('pageerror')` + mesajele console de tip `error` și **pică testul la teardown** dacă a apărut vreunul. Așa, criteriul „fără erori critice în consolă" e verificat în FIECARE scenariu. Tot aici: helperii `waitForHook/hookState/addInspiration/fastForward/saveNow` peste `window.__FABLE_TEST__` (contractul 02 §6.3, activ doar cu `?test=1`).
+**Excepție v2 (singura):** mesajele `Failed to load resource: …` emise de **Chromium însuși** (nu de aplicație — nesuprimabile din JS) sunt ignorate DOAR când URL-ul sursă conține `/api/` — necesare scenariilor de degradare și răspunsurilor 4xx legitime (409 la claim). Orice alt console.error pică testul în continuare.
 
 ---
 
 ## 2. Cum se rulează (host = Windows fără Node; totul prin Docker)
 
 ```bash
-docker compose run --rm test-unit            # Vitest (156 teste)
-docker compose run --rm --build test-e2e     # rebuild web + healthcheck + Playwright (11 teste)
-docker compose down                          # curățenie la final (FĂRĂ -v: păstrează node_modules)
+docker compose run --rm test-unit            # Vitest (297: 278 unit + 19 server, în proces)
+docker compose run --rm --build test-e2e     # rebuild web + healthcheck web+api + Playwright (17 teste)
+docker compose down                          # curățenie la final (FĂRĂ -v: păstrează node_modules + leaderboard_data)
 ```
 
 Note operaționale:
 - Prima rulare face `npm install` în named volume (~1–2 min); rulările următoare refolosesc volumul.
 - `--build` la test-e2e e important: reconstruiește imaginea `web` ca Playwright să testeze ULTIMUL cod, nu un build vechi.
-- `test-e2e` pornește singur serviciul `web` (depends_on + healthcheck) — nu trebuie pornit manual. Portul 8080 pe host trebuie să fie liber (alt proiect pe 8080 = `web` nu pornește).
+- `test-e2e` pornește singur serviciile `web` ȘI `api` (depends_on + healthcheck pe ambele) — nu trebuie pornite manual. Portul 8080 pe host trebuie să fie liber (alt proiect pe 8080 = `web` nu pornește).
+- Volumul `leaderboard_data` persistă între rulări: spec-ul 10 folosește nickname-uri unice per încercare (sufix timestamp base36) — NU curățați volumul ca „fix" de test.
 - Typecheck complet: `docker compose run --rm test-unit sh -c "npm install --no-audit --no-fund && npx tsc --noEmit && npx vitest run"`.
 - Artefacte la eșec: `test-results/` (trace Playwright, `retain-on-failure`; se vizualizează cu `npx playwright show-trace <zip>` oriunde există Playwright).
 
@@ -104,5 +126,10 @@ Note operaționale:
 | **Sesiuni offline REAL lungi** (8h+, sleep de laptop) | simulat prin save fabricat + unit tests pe plafon; ramura foreground (gap >60s cu tab-ul deschis) e unit-testată în `game-loop.test.ts` (Agent 9) | un sleep REAL de laptop nu e reprodus automat; logica e identică cu cea testată |
 | **Buff-ul în E2E** | activarea/expirarea nu au scenariu E2E dedicat | acoperit complet în unit (buff.ts prin click/tick/production tests) |
 | Toast-urile: coada >3, hover-pause | doar prezența toastului corect e verificată | comportament de detaliu, cost/beneficiu slab pentru E2E |
+| **Spawn-ul NATURAL al sparkului** (timer 150–330s, gate de vizibilitate) | E2E folosește doar `forceSpark` (timerul real ar face testul de minute) | intervalul e unit-testat (`sparkIntervalRange`); despawn-ul la reload E verificat E2E |
+| **Relicele deblocate** (≥3 tomes) + dialogul de confirmare Atelier (≥10 🪶) | E2E ajunge doar la 2 tomes / cumpărături de 1 🪶 | logica în unit (atelier.test.ts, prestige.test.ts); ambele verificate vizual de smoke-ul agentului UI (05 §UI v2) |
+| **Leaderboard multi-client real** (2 browsere concurente, rank live) | E2E simulează al 2-lea jucător printr-un POST direct | serverul are 19 teste HTTP reale (sortări, tie-break, best-keeping) |
 
 Riscuri de flakiness cunoscute și cum au fost evitate: asserturile pe sold folosesc starea exactă din hook (nu textul cu floor); toasturile se verifică imediat după acțiune (auto-dismiss 4s); overlay-ul de prestige are timeout generos (10s); testul 08 acceptă atât cheia ștearsă cât și un autosave proaspăt (fereastra de 10s a autosave-ului).
+
+Adăugiri v2 (aceeași filozofie): spec-urile care asertează toast-uri v2 GOLESC întâi coada (`toHaveCount(0)` pe `toast`, plus `test.slow()`) — `addInspiration` masiv împinge ~12 toast-uri înaintea celui verificat; sparkul se prinde cu `dispatchEvent('pointerdown')` (elementul zboară — `click()` ar aștepta stabilitate); „producția nu scade" din Atelier e `≥`, nu egalitate (prima cumpărătură aduce +1% prin achievement); procentul Bookshelf se calculează din titlurile UNICE citite din stare (un duplicat legitim „reprint" nu pică testul); 409-ul de leaderboard se provoacă rezervând numele printr-un POST direct ÎN ACELAȘI test.

@@ -1,5 +1,36 @@
 # 05 — Implementation Log
 
+## Agent Docs v2 — README actualizat pentru v2 (2026-07-04)
+
+### Status: COMPLET
+- Singura comandă Docker rulată: `docker compose config -q` (read-only, permisă) → exit 0, compose valid. Zero `up/run/build/down` (Agentul E2E deținea Docker-ul).
+- Fișiere atinse: **DOAR `README.md`** (rescris pentru v2) + această secțiune. `tests/`, `src/`, `server/`, configs — neatinse.
+
+### Ce s-a schimbat în README (structura cerută păstrată: How to run / How to test / How to build / Project structure / Game systems / Known limitations)
+1. **Intro** — „No backend" înlocuit cu „Client-side game, optional backend" (leaderboard-ul `server/`, joc 100% funcțional fără el).
+2. **How to run** — `docker compose up --build` pornește acum `web`+`api`; subsecțiune nouă: `docker compose up --build web` merge singur (resolver lazy în nginx, Hall of Fables degradează grațios); avertisment că `down -v` șterge acum și `leaderboard_data`; `logs api` la debugging; nota că `dev` pornește și `api` (Vite proxy `/api`).
+3. **Quick start** — pași noi: Stray Spark la 1.000, Actul 2 după primul Publish (Atelier/Bookshelf/Hall + regula de aur).
+4. **How to test** — „297 tests" (278 în `tests/unit` + 19 în `tests/server`, ambele printr-un singur `docker compose run --rm test-unit` via `vite.config.ts test.include`); descrierea celor 19 teste server (HTTP real in-process, port efemer); E2E: așteaptă healthcheck `web`+`api`, „spec-urile din tests/e2e" (fără cifră hardcodată — Agentul E2E adaugă spec-uri chiar acum); `forceSpark` adăugat la lista hook-ului; notă că volumul leaderboard păstrează nickname-uri între rulări.
+5. **How to build** — bundle actualizat (~255 KB JS / ~80 KB gzip / ~52 KB CSS, din log-ul Agent UI v2); `docker compose build api` (imagine fără build step, zero deps).
+6. **Project structure** — arbore actualizat: `server/` complet (6 fișiere src + Dockerfile), `atelier.ts`/`spark.ts`/`fables.ts` în engine, `leaderboard-client.ts` + componentele v2 + `useStraySpark` în ui, `tests/server/`, `tools/economy-sim-v2.mjs`, cifrele 24 achievements / 15 milestones în comentarii.
+7. **Game systems** — actualizate: Generators (8, cu rândul Myth Engine 300M/45.000/×1.12), Achievements (24), Milestones (15 reveal = 12 pe totalEarned + 3 pe primul tome), Prestige (+regula de aur pe `lifetimeQuillsEarned`, Second Bookmark, Editor's Due, fable per publish), Offline (Night Owl 20h/24h, Reader's Letter +10pp → max 85%), Saving (schema v2 sub cheia istorică `fable-idler-save-v1`, migrare v1→v2, export conține tokenul). Secțiuni NOI: **The Gilded Atelier** (tabel cu toate cele 10 upgrade-uri + costuri, total 92 🪶, confirmare ≥10, 5 fragmente = 1 quill), **Relics of the Published** (4 relicve la 3/7/15/30 tomes, derivate — nu în save), **Stray Spark** (interval 150–330s, zbor 10s, tabel recompense cu ponderile 45/20/15/10/8/2), **The Bookshelf** (+2%/fabulă unică, cap 25 = +50%, gilded ≥5 quills, faded din migrare contează), **Myth Engine** (Blueprint 12 🪶 + reveal 150M, exclus din Well-Rounded Library), **Hall of Fables** (nickname 3–20 `[A-Za-z0-9 _-]`, guest token afișat o dată → în save, 4 scoruri, top 20 + rank propriu, best-keeping, TTL 90 zile, local-only = zero requests).
+8. **Hosting on a server** — secțiune NOUĂ: `up -d --build` pe VPS, reverse proxy + TLS peste 8080 (un singur port acoperă joc + `/api/`), `restart: unless-stopped` deja setat, backup = volumul `leaderboard_data` (exemplu tar), save-urile jucătorilor NU sunt pe server, onest despre client-authoritative + rate limits, env tunables (`LEADERBOARD_TTL_DAYS` etc.).
+9. **Known limitations** — adăugate: scoruri client-authoritative („on trust"); tokenul trăiește în save-ul local (export = backup ȘI parolă); „No backend" reformulat în „No cloud sync for game saves"; multi-tab neschimbat; test hook re-motivat (nu mai e „local single-player").
+
+### Verificare pe disc (fiecare afirmație din README confruntată cu sursa)
+- `src/engine/config.ts`: 8 generatori (mythEngine 300M/45.000/×1.12/revealAt 150M), 24 achievements, 15 reveal milestones (12 totalEarned — incl. `aLightAtTheWindow` la 1.000 — + 3 `tomesPublished:1`), ATELIER_UPGRADES (10, costuri exacte din tabel, sumă 92), RELICS (3/7/15/30), SPARK (150–330s, 10s zbor, ponderi 45/20/15/10/8/2, frenzy ×7/30s, gossip ×5/60s tiers 1–3, inkBurst 45s/floor 50 clicks, 5 fragmente/quill), BOOKSHELF (0.02/cap 25), GILDED_QUILLS_THRESHOLD=5, NIGHT_OWL +12h, READERS_LETTER +0.1, WELL_ROUNDED exclude mythEngine.
+- `src/engine/save.ts`: SAVE_KEY `fable-idler-save-v1` neschimbat, CURRENT_SAVE_VERSION=2, migrare v1→v2. `src/engine/fables.ts`+`selectors.ts`: faded contează în `uniqueFableCount` (dedupe pe titlu).
+- `docker-compose.yml`: api fără port pe host, volum `leaderboard_data`, `restart: unless-stopped` pe web+api, web FĂRĂ depends_on, dev `depends_on: [api]`, test-e2e așteaptă web+api healthy, pin v1.49.1-noble. `nginx.conf`: `location /api/` cu resolver lazy. `vite.config.ts`: proxy `/api` + `test.include` cu `tests/server`.
+- `server/src/*`: nickname `^[A-Za-z0-9 _-]{3,20}$` (validate.mjs), ttlDays default 90 (server.mjs/app.mjs), rate limits 10/60 pe min.
+- Teste: `tests/unit` = 18 fișiere `.test.ts` + helpers, `tests/server` = 1 fișier; cifrele 278+19=297 luate din rulările validate în log (Agent Engine v2 + Agent UI v2) — numărătoarea statică a `it(` subestimează din cauza buclelor parametrizate. E2E lăsat generic (8 spec-uri v1 pe disc acum, Agentul E2E adaugă).
+- Bundle: 254.86 kB JS (gzip 79.80) + 52.06 kB CSS — din validarea reală a Agent UI v2 (log, 2026-07-04), rotunjite în README.
+
+### De știut pentru Agentul E2E / quality gate
+- README documentează E2E generic („the Playwright specs from tests/e2e") — nicio cifră de actualizat când adăugați spec-uri.
+- Dacă schimbați fluxul de rulare E2E sau adăugați servicii compose, actualizați „How to test" și „How to run".
+
+---
+
 ## Agent UI v2 — Atelier, Bookshelf, Hall of Fables, Stray Spark (2026-07-04)
 
 ### Status: COMPLET și VERDE (validat prin Docker + smoke Playwright)

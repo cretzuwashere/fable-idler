@@ -5,6 +5,7 @@
 //   first achievement (First Words — very first click)
 // - the Upgrades tab appears at 100 totalEarned (Craftsman's Tools)
 
+import { ACHIEVEMENTS } from '../../src/engine';
 import { addInspiration, expect, test, waitForHook } from './fixtures';
 
 test.describe('04 — unlocks', () => {
@@ -30,9 +31,13 @@ test.describe('04 — unlocks', () => {
     await expect(sparkToast).toHaveAttribute('data-toast-kind', 'milestone');
 
     // First click unlocked the "First Words" achievement → Hall of Deeds →
-    // the Achievements section is now on screen, with 1/14 unlocked.
+    // the Achievements section is now on screen, with 1/N unlocked. N comes
+    // from the engine config (14 in v1, 24 in v2) — the UI header is dynamic
+    // ({unlocked}/{ACHIEVEMENTS.length}), so the assert is too.
     await expect(page.getByTestId('tab-achievements')).toBeVisible();
-    await expect(page.getByTestId('achievements-count')).toContainText('1/14');
+    await expect(page.getByTestId('achievements-count')).toContainText(
+      `1/${ACHIEVEMENTS.length}`,
+    );
     await expect(page.getByTestId('achievement-firstWords')).toBeVisible();
 
     // Still under 100 totalEarned → no Upgrades tab yet.
